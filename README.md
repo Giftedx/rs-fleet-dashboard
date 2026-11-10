@@ -106,11 +106,20 @@ bun scripts/apply-config.ts
 
 ## Host it on GitHub Pages
 
-Keep your data off the `main` branch.
+Keep your data off the `main` branch. One command puts the page and your `public.json` on a branch named `site`:
 
-1. Make your own repository from this one.
-2. Make your publisher push `site/` and a new `public.json` to a branch named `site`. Push at most 6 times an hour. GitHub Pages builds at most 10 times an hour.
-3. In the repository settings, set Pages to deploy from the branch `site`, folder `/ (root)`.
+```bash
+bun scripts/deploy.ts --data demo
+```
+
+The branch holds one commit. Each run replaces it, so the branch keeps no history of your data. The command copies `public.json` and `map.bin` only. It never copies `control.json`.
+
+1. Make your own repository from this one and clone it.
+2. Start a publisher, so the folder has a fresh `public.json`.
+3. Run the command above. Run it again when you want the hosted page to show new data, at most 6 times an hour. GitHub Pages builds at most 10 times an hour.
+4. In the repository settings, set Pages to deploy from the branch `site`, folder `/ (root)`.
+
+`--dry-run` builds the folder and pushes nothing. `--remote` and `--branch` name a different target.
 
 ## Owner sign-in and commands
 
@@ -133,6 +142,7 @@ On `localhost`, `?control` shows the control view without a token. The page read
 |---|---|
 | `bun run demo` | Writes demo data and serves the page at `http://127.0.0.1:3200` |
 | `bun scripts/publish.ts --names a,b` | Writes `public.json` for your bots from the world feed and the hiscores |
+| `bun scripts/deploy.ts --data <folder>` | Puts the page and `public.json` on the branch `site` for GitHub Pages |
 | `bun run serve` | Serves `site/`. `--data <folder>` reads `public.json`, `control.json` and `map.bin` from that folder |
 | `bun test` | Runs the tests |
 | `bun run typecheck` | Checks the types of the scripts and tests |
@@ -149,6 +159,7 @@ On `localhost`, `?control` shows the control view without a token. The page read
 | `site/client-assets/` | Interface art and fonts. `ATTRIBUTION.txt` gives the source of each file |
 | `scripts/publish.ts` | The ready publisher: world feed and hiscores to `public.json` |
 | `scripts/make-demo.ts` | Demo data, and the example of a publisher |
+| `scripts/deploy.ts` | Puts the page and the public data on one branch for GitHub Pages |
 | `scripts/import-page.ts` | Copies the page from the folder of a local dashboard server and makes its paths relative |
 | `scripts/make-items-webp.py` | Writes `site/items.webp` from `site/items.png` and checks that the pixels match |
 
