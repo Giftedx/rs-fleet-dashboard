@@ -29,16 +29,42 @@ bun run demo
 
 Open `http://127.0.0.1:3200`. The command writes `demo/public.json` with six made-up bots and serves the page with it. The 3D view stays empty until you install the game cache (below).
 
-## How the page gets data
+## Show your own bots
 
-The page reads one file, `public.json`, from the folder that serves it. The page loads the file again when the next file is due. `site/shim.js` loads before the page and answers each request of the page from that file.
+The page reads one file, `public.json`, from the folder that serves it. A program that writes this file is a publisher. `site/shim.js` loads before the page and answers each request of the page from that file.
 
-To show your bots, write a program that makes `public.json` from your bots and puts it beside the page. This program is the publisher.
+### The ready publisher
+
+`scripts/publish.ts` needs no access to your bots. It reads two public sources of the game server: the world feed, and the hiscore pages. Give it the names of your bots:
+
+```bash
+bun scripts/publish.ts --names Alice,Bob --out demo
+```
+
+In a second terminal, serve the page with that folder:
+
+```bash
+bun run serve --data demo
+```
+
+The publisher writes a new file each 60 seconds. It shows where each bot is, if it is online, its levels, its hiscore ranks and the top 10 of each board.
+
+| Option | Meaning |
+|---|---|
+| `--names a,b` | The account names of your bots |
+| `--server <host>` | The game server. The default is `rs-sdk-demo.fly.dev` |
+| `--out <folder>` | Where to write `public.json`. The default is `demo` |
+| `--every <seconds>` | The time between two files. The default is 60 |
+| `--once` | Write one file and stop |
+
+The public sources do not give inventories, worn items, quests, XP or goals. Those parts of the page stay empty.
+
+### Your own publisher
+
+A publisher that reads your bots can fill every part of the page.
 
 - [docs/data-format.md](docs/data-format.md) describes each key of the file.
 - [scripts/make-demo.ts](scripts/make-demo.ts) builds a full file in 100 lines. Start from it.
-
-This repository holds the page. It does not hold a publisher for your bots, because a publisher depends on how your bots keep their state.
 
 ## The 3D view
 
@@ -102,6 +128,7 @@ On `localhost`, `?control` shows the control view without a token. The page read
 | Command | What it does |
 |---|---|
 | `bun run demo` | Writes demo data and serves the page at `http://127.0.0.1:3200` |
+| `bun scripts/publish.ts --names a,b` | Writes `public.json` for your bots from the world feed and the hiscores |
 | `bun run serve` | Serves `site/`. `--data <folder>` reads `public.json`, `control.json` and `map.bin` from that folder |
 | `bun test` | Runs the tests |
 | `bun run typecheck` | Checks the types of the scripts and tests |
@@ -116,6 +143,7 @@ On `localhost`, `?control` shows the control view without a token. The page read
 | `site/config.js` | The settings |
 | `site/viewer/` | The 3D view |
 | `site/client-assets/` | Interface art and fonts. `ATTRIBUTION.txt` gives the source of each file |
+| `scripts/publish.ts` | The ready publisher: world feed and hiscores to `public.json` |
 | `scripts/make-demo.ts` | Demo data, and the example of a publisher |
 | `scripts/import-page.ts` | Copies the page from the folder of a local dashboard server and makes its paths relative |
 | `scripts/make-items-webp.py` | Writes `site/items.webp` from `site/items.png` and checks that the pixels match |
