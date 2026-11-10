@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { DATA_FILES, findPrivate, readNames } from '../scripts/check-private';
 import { configureServer, DEFAULT_SERVER } from '../scripts/import-page';
-import { makeDemo, SKILLS } from '../scripts/make-demo';
+import { makeDemo, SKILLS, xpFor } from '../scripts/make-demo';
 
 const shimSource = readFileSync(new URL('../site/shim.js', import.meta.url), 'utf8');
 const shim = (page: object) => (runInNewContext(shimSource + '\n;globalThis', page) as { FleetShim: { CONFIG: { repo: string }; pagesRepo(loc: object): string } }).FleetShim;
@@ -63,6 +63,11 @@ describe('demo data', () => {
         const off = state.bots.filter(b => !b.inWorld);
         expect(off.map(b => b.operation)).toEqual(['offline']);
         expect(state.roster.some(row => row[0] === off[0]!.name)).toBe(false);
+    });
+    test('the demo XP is on the curve of the page: the level that the page reads from it is the level of the skill', () => {
+        const source = readFileSync(new URL('../site/xp-tracker.js', import.meta.url), 'utf8');
+        expect(source).toContain('Math.pow(2, level / 10) * 300');
+        expect([xpFor(1), xpFor(2), xpFor(99)]).toEqual([0, 80, 998458]);
     });
     test('every item a bot holds has an icon id', () => {
         for (const bot of state.bots) for (const item of bot.inventory) expect(state.icons[item.name]).toBe(String(item.id));

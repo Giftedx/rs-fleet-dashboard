@@ -18,10 +18,10 @@ const DEMO: Demo[] = [
     { name: 'DemoSmith', role: 'smithing', goal: 'smelt steel bars at Falador', skill: 'Smithing', level: 43, x: 2974, z: 3369, items: [[2353, 'Steel bar', 9]], online: false },
 ];
 
-/** XP at the start of a level on the official curve; your publisher sends the XP your server reports. */
+/** XP at the start of a level on the curve of the rs-sdk demo server, which the page uses too (site/xp-tracker.js). */
 export function xpFor(level: number) {
     let points = 0;
-    for (let l = 1; l < level; l++) points += Math.floor(l + 300 * 2 ** (l / 7));
+    for (let l = 1; l < level; l++) points += Math.floor(l + 300 * 2 ** (l / 10));
     return Math.floor(points / 4);
 }
 
