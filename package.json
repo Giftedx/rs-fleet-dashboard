@@ -1,0 +1,16 @@
+{
+  "name": "rs-fleet-dashboard",
+  "type": "module",
+  "scripts": {
+    "test": "bun test ./test",
+    "typecheck": "tsc --noEmit",
+    "serve": "bun scripts/serve.ts",
+    "demo": "bun scripts/make-demo.ts && bun scripts/serve.ts --data demo",
+    "check-private": "bun scripts/check-private.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.6",
+    "typescript": "5.8.3"
+  },
+  "license": "BSD-2-Clause"
+}

@@ -1,0 +1,308 @@
+/* Desktop client chrome follows RuneLite's ColorScheme and XP Tracker panel. */
+:root {
+    --fin-0: #1e1e1e;
+    --fin-1: #282828;
+    --fin-2: #1e1e1e;
+    --fin-3: #333;
+    --fin-line: #171717;
+    --fin-line-2: #4d4d4d;
+    --fin-tx: #ededed;
+    --fin-tx-2: #c6c6c6;
+    --fin-tx-3: #a5a5a5;
+    --fin-gold: #ff981f;
+    --fin-gold-soft: #dc8a0026;
+    --fin-good: #78dd88;
+    --fin-r: 2px;
+    --fin-r-s: 2px;
+    --fin-font: "Segoe UI", Tahoma, sans-serif;
+}
+
+.client-title {
+    background: var(--fin-0);
+    border-bottom-color: var(--fin-line);
+    box-shadow: none;
+}
+
+.client-title > span:first-of-type {
+    color: var(--fin-tx);
+    font-weight: 600;
+}
+
+.client-title .focus,
+.focus-menu {
+    border-color: #414141;
+    border-radius: 2px;
+}
+
+.client-title .focus-now:focus-visible,
+.client-title .focus-step:focus-visible {
+    outline-offset: -2px;
+}
+
+.client-rail {
+    background: var(--fin-0);
+    gap: 0;
+}
+
+.client-rail button {
+    border-radius: 0;
+}
+
+@media (min-width: 741px) {
+    .client-rail button {
+        margin-inline: 2px;
+    }
+}
+
+.client-rail button.on {
+    background: #3c3c3c;
+    border-right: 0;
+    box-shadow: inset 2px 0 var(--fin-gold);
+}
+
+.client-plugin {
+    border-left-color: var(--fin-line);
+    box-shadow: none;
+}
+
+.client-plugin-title {
+    background: var(--fin-0);
+}
+
+.client-plugin-title #client-plugin-name {
+    color: var(--fin-gold);
+    font-weight: 700;
+}
+
+.op-account-context {
+    background: #222;
+}
+
+.op-page:has(.fl-deck) {
+    gap: 8px;
+}
+
+.op-heading {
+    color: var(--fin-tx);
+    font: 20px/1.15 RSBold, "Segoe UI", sans-serif;
+}
+
+.op-eyebrow {
+    letter-spacing: .08em;
+}
+
+.fl-deck {
+    gap: 1px;
+    padding: 1px;
+    background: var(--fin-line);
+}
+
+.fl-deck .fl-tile {
+    padding: 7px 9px;
+    border: 0;
+    border-radius: 0;
+    background: var(--fin-0);
+    box-shadow: none;
+    text-align: left;
+}
+
+.fl-deck button.fl-tile:hover {
+    background: var(--fin-3);
+}
+
+.fl-deck .fl-tile b {
+    color: var(--fin-gold);
+    font: 22px/1.1 RSBold, "Segoe UI", sans-serif;
+}
+
+.fl-deck .fl-tile small {
+    margin-bottom: 2px;
+    font-size: 11px;
+}
+
+#op-fleet-list {
+    gap: 2px;
+}
+
+.fl-row,
+.fl-row:hover {
+    border: 0;
+    background: var(--fin-0);
+}
+
+.fl-row:hover,
+.fl-row:focus-within {
+    background: var(--fin-3);
+}
+
+.fl-row.on {
+    box-shadow: inset 2px 0 var(--fin-good);
+}
+
+.fl-main {
+    padding-block: 6px;
+}
+
+.fl-icon {
+    background: #151515;
+    border-radius: 0;
+}
+
+.op-filter button {
+    border-color: var(--fin-line);
+    background: var(--fin-0);
+}
+
+.op-filter button.active {
+    border-color: #dc8a0080;
+    background: var(--fin-gold-soft);
+}
+
+.client-plugin .xp-box {
+    background: var(--fin-0);
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.game-hud .visitor-card {
+    top: 50px;
+    width: min(376px, calc(100% - 16px));
+    max-height: calc(100% - 62px);
+    padding: 11px 12px;
+    overflow: auto;
+    border: 1px solid #4d4d4d;
+    border-left: 2px solid var(--fin-gold);
+    border-radius: 0;
+    background: #1e1e1ef5;
+    box-shadow: 0 4px 14px #0008;
+    color: var(--fin-tx-2);
+    font: 13px/1.4 var(--fin-font);
+}
+
+.visitor-card h2 {
+    color: var(--fin-gold);
+    font: 18px/1.15 RSBold, "Segoe UI", sans-serif;
+}
+
+.game-hud .visitor-card button {
+    border-color: #4d4d4d;
+    border-radius: 2px;
+    background: #303030;
+    color: var(--fin-tx);
+    font: 600 12px var(--fin-font);
+}
+
+.game-hud .visitor-card button:first-child {
+    border-color: #dc8a00;
+    background: #dc8a00;
+    color: #141414;
+}
+
+.game-hud .visitor-card button:hover {
+    filter: brightness(1.16);
+}
+
+.game-hud .visitor-card button:focus-visible {
+    outline: 2px solid var(--fin-gold);
+    outline-offset: 2px;
+}
+
+@media (max-width: 479px) {
+    .game-hud .visitor-card {
+        top: 190px;
+        max-height: calc(100% - 202px);
+    }
+}
+
+/* Resizable game HUD, measured against RuneLite's 1.10.23 client screenshot. */
+.game-hud .game-tabs {
+    width: 228px;
+    filter: none;
+}
+
+.game-hud .tab-row {
+    grid-template-columns: repeat(3, 34px);
+    justify-content: end;
+    gap: 2px;
+    height: 34px;
+    padding: 0 2px;
+    border: 0;
+    background: none;
+}
+
+.game-hud .tab-row button {
+    border: 1px solid #171410;
+    border-radius: 7px 7px 3px 3px;
+    background: linear-gradient(145deg, #746b58, #373127 68%);
+    box-shadow: inset 1px 1px #9a907466, inset -1px -1px #100d0a;
+}
+
+.game-hud .tab-row button.active {
+    background: #53271f url("client-assets/redstone2.png") center / 100% 100%;
+    box-shadow: inset 1px 1px #df937049, inset -1px -1px #160b07;
+}
+
+.game-hud .game-panel {
+    height: 262px;
+    padding: 7px 9px;
+    border: 0;
+    background: linear-gradient(#1b140c33, #1b140c33), url("client-assets/invback.png") center / 100% 100%;
+    box-shadow: inset 0 0 0 1px #17130e;
+}
+
+.game-hud .inventory-grid {
+    grid-template-columns: repeat(4, 42px);
+    grid-template-rows: repeat(7, 34px);
+    justify-content: center;
+    gap: 0 3px;
+}
+
+.game-hud .game-chat {
+    width: min(515px, calc(100% - 232px));
+    height: 156px;
+    border: 1px solid #4c4336;
+    background: #c4b28b url("client-assets/chatback.png") center / 100% 100%;
+}
+
+.game-hud .game-chat-lines,
+.game-hud .chat-input input {
+    font-size: 14px;
+    line-height: 15px;
+}
+
+.game-hud .chat-channels {
+    height: 24px;
+    gap: 3px;
+    padding: 2px 3px;
+    border-top: 1px solid #5c523f;
+    background: #a3987e;
+}
+
+.game-hud .chat-channels button {
+    border-radius: 4px;
+    background: linear-gradient(#635c4c, #302b22);
+}
+
+.game-hud .chat-channels button.active {
+    color: #ffdf84;
+    border-color: #58442a;
+    background: linear-gradient(#796947, #473926);
+}
+
+@media (max-width: 740px) {
+    .game-hud .game-tabs {
+        width: 208px;
+    }
+
+    .game-hud .game-chat {
+        width: calc(100% - 212px);
+        height: 140px;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 479px) {
+    .game-hud .game-chat {
+        width: auto;
+    }
+}

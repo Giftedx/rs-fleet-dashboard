@@ -1,0 +1,40 @@
+Client artwork sources
+
+RuneLite logo and skill icons: runelite/runelite, runelite-client/src/main/resources/net/runelite/client/ui/runelite_16.png and skill_icons/, retrieved 2026-10-28. See RUNELITE-FULL-LICENSE.txt. Interface palette source pinned in ../RUNELITE-LICENSE.txt.
+
+Game fonts, interface textures and minimap artwork: existing vendor/rs-world/src/media and src/components/rs/minimap. See RS-WORLD-LICENSE.txt for the viewer code license. RuneScape artwork remains the property of Jagex; the code license does not relicense that artwork.
+
+Game sprite strips: existing pinned vendor/rs-sdk/server/content/sprites. Converted magenta transparency to alpha without resampling. Original Jagex game artwork; not claimed as original or BSD artwork.
+
+This is an independent spectator dashboard. It is not the RuneLite desktop client and is not affiliated with Jagex or RuneLite.
+
+../items.png: Jagex game artwork rendered from the installed Lost City config and model cache by ../tools/export-item-icons.ts, using the pinned webclient ItemViewer. ../items.json and the page's local item table use the same config names and IDs. The artwork is not covered by the RuneLite BSD license.
+
+Current OSRS tab, orb, prayer and emote PNG artwork: oldschool.runescape.wiki/images/, retrieved 2026-10-28. File names were checked against the Interface and Emotes page image lists. RuneScape artwork copyright Jagex. These assets are not covered by the RuneLite BSD license.
+
+Spell icons: the same OSRS Wiki image source, using names from the Ancient Magicks, Lunar spellbook and Arceuus spellbook image lists, and the named Standard spells. Icons are a visual reference and do not assert account unlocks or cast availability.
+
+rl-*.png: plugin sidebar icons from the RuneLite client (github.com/runelite/runelite, runelite-client/src/main/resources at commit 7715a1d26e6cbbfdce7ad266a39c8c3c611211a0, matched by git blob hash), BSD 2-Clause, see RUNELITE-FULL-LICENSE.txt. Each file and its source under runelite-client/src/main/resources/:
+  rl-account.png: net/runelite/client/plugins/config/profile_icon.png
+  rl-activity.png: net/runelite/client/plugins/timetracking/loop_icon.png
+  rl-alerts.png: net/runelite/client/plugins/timetracking/notify_icon.png
+  rl-allocation.png: net/runelite/client/plugins/skillcalculator/calc.png
+  rl-boards.png: net/runelite/client/plugins/hiscore/overall.png
+  rl-dispatch.png: net/runelite/client/plugins/timetracking/start_icon.png
+  rl-fleet.png: net/runelite/client/plugins/party/panel_icon.png
+  rl-ge.png: net/runelite/client/plugins/grandexchange/ge_icon.png
+  rl-goals.png: net/runelite/client/plugins/friendnotes/note_icon.png
+  rl-hiscore.png: net/runelite/client/plugins/hiscore/normal.png
+  rl-jobs.png: net/runelite/client/plugins/config/plugin_hub_icon.png
+  rl-library.png: net/runelite/client/plugins/screenmarkers/panel_icon.png
+  rl-loot.png: net/runelite/client/plugins/loottracker/panel_icon.png
+  rl-machine.png: net/runelite/client/plugins/info/info_icon.png
+  rl-operations.png: net/runelite/client/plugins/config/config_icon_lg.png
+  rl-prs.png: net/runelite/client/plugins/info/github_icon.png
+  rl-settings.png: net/runelite/client/plugins/config/config_icon.png
+  rl-stock.png: net/runelite/client/plugins/grandexchange/ge_icon.png
+  rl-world.png: net/runelite/client/plugins/worldhopper/icon.png
+  rl-worlds.png: net/runelite/client/plugins/worldhopper/icon.png
+  rl-xp.png: skill_icons_small/overall.png
+
+npc-names.json: npc names and shown combat levels from the pinned server content (vendor/rs-sdk/server/content: pack/npc.pack and scripts/**/*.npc), MIT License, Copyright (c) 2023-2026 Lost City. Written by packages/dashboard/tools/export-npc-names.ts.

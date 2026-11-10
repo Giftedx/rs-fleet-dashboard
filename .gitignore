@@ -1,0 +1,11 @@
+node_modules/
+*.log
+# Published data never goes on main. The live files sit on the data and site branches.
+/site/public.json
+/site/control.json
+/site/map.bin
+/demo/
+# The game cache for the 3D view (scripts/install-cache.ts).
+/site/viewer/caches/
+# Names that must never be in this repository, one for each line (scripts/check-private.ts).
+/.private-names
