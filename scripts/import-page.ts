@@ -44,14 +44,13 @@ export function connectViewerControls(shell: string): string {
     return shell.replace(start, '  const gameKeys=e=>{').replace(end, VIEWER_CONTROLS.slice(1));
 }
 
-/** The page names one game server; config.js (FLEET_CONFIG.server) replaces it in the feed address and the Hiscores link. */
+/** The page names one game server. config.js (FLEET_CONFIG.server) replaces it in the feed address; shim.js sets the Hiscores link. */
 export const DEFAULT_SERVER = 'rs-sdk-demo.fly.dev';
 const SERVER_EXPR = `(window.FLEET_CONFIG&&window.FLEET_CONFIG.server||'${DEFAULT_SERVER}')`;
 export function configureServer(html: string): string {
-    html = html.replaceAll(`'wss://${DEFAULT_SERVER}/worldfeed'`, `'wss://'+${SERVER_EXPR}+'/worldfeed'`);
-    const link = `<a href="https://${DEFAULT_SERVER}/hiscores" target=`;
-    html = html.replace(link, `<a href="https://${DEFAULT_SERVER}/hiscores" onclick="this.href='https://'+${SERVER_EXPR.replaceAll("'", '&#39;')}+'/hiscores'" target=`);
-    return html;
+    // An older import set the link in an onclick, which a middle click does not run.
+    html = html.replace(/ onclick="this\.href='https:\/\/'\+[^"]*\+'\/hiscores'"/g, '');
+    return html.replaceAll(`'wss://${DEFAULT_SERVER}/worldfeed'`, `'wss://'+${SERVER_EXPR}+'/worldfeed'`);
 }
 /** Absolute paths the page uses for its own files become relative; the shim loads first. */
 export function rewrite(name: string, text: string): string {

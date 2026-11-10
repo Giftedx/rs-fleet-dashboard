@@ -8,7 +8,8 @@
     // On <owner>.github.io/<repo>/ the address gives it. With no repository the page is public view only.
     function pagesRepo(loc) {
         const owner = /^([a-z0-9-]+)\.github\.io$/i.exec(loc && loc.hostname || ''), repo = String(loc && loc.pathname || '').split('/')[1];
-        return owner && repo ? owner[1] + '/' + repo : '';
+        // A user site (<owner>.github.io with no project folder) has a file name there, or nothing.
+        return owner && repo && !repo.includes('.') ? owner[1] + '/' + repo : '';
     }
     const SETTINGS = global.FLEET_CONFIG || {};
     const CONFIG = { repo: SETTINGS.repo || pagesRepo(global.location), publicPollMs: 30000, publicEveryMs: 600000, controlPollMs: 30000, publicFreshMs: 15 * 60000, controlFreshMs: 3 * 60000, heartbeatMs: 4000, tokenKey: 'fleet-command.token', api: 'https://api.github.com' };
@@ -336,5 +337,11 @@
     // The page's inline script runs after this one and opens the EventSource; the token check must finish first,
     // so the first state load waits on it.
     const ready = global.FleetShim.ready = start();
+    // The page names the default game server in its Hiscores link. config.js can name a different one.
+    function serverLinks() {
+        if (!SETTINGS.server) return;
+        for (const link of document.querySelectorAll('a[href$="/hiscores"]')) link.href = 'https://' + SETTINGS.server + '/hiscores';
+    }
+    document.addEventListener('DOMContentLoaded', serverLinks);
     document.addEventListener('DOMContentLoaded', badge);
 })(globalThis);

@@ -28,18 +28,31 @@ describe('settings', () => {
         expect(shim({ location: { hostname: 'owner.github.io', pathname: '/my-fleet/' } }).CONFIG.repo).toBe('owner/my-fleet');
         expect(shim({ location: { hostname: 'example.com', pathname: '/x/' } }).CONFIG.repo).toBe('');
         expect(shim({}).pagesRepo({ hostname: 'owner.github.io', pathname: '/' })).toBe('');
+        expect(shim({}).pagesRepo({ hostname: 'owner.github.io', pathname: '/index.html' })).toBe('');
     });
-    test('the page takes the game server from config.js in the feed address and the Hiscores link', () => {
-        const html = configureServer(`<a href="https://${DEFAULT_SERVER}/hiscores" target="_blank">x</a><script>set('live','wss://${DEFAULT_SERVER}/worldfeed')</script>`);
+    test('the page takes the game server from config.js in the feed address; an old onclick on the Hiscores link goes', () => {
+        const old = `<a href="https://${DEFAULT_SERVER}/hiscores" onclick="this.href='https://'+(window.FLEET_CONFIG&&window.FLEET_CONFIG.server||&#39;${DEFAULT_SERVER}&#39;)+'/hiscores'" target="_blank">x</a>`;
+        const html = configureServer(old + `<script>set('live','wss://${DEFAULT_SERVER}/worldfeed')</script>`);
         expect(html).toContain("set('live','wss://'+(window.FLEET_CONFIG&&window.FLEET_CONFIG.server||'rs-sdk-demo.fly.dev')+'/worldfeed')");
-        expect(html).toContain('onclick="this.href=');
+        expect(html).toContain(`<a href="https://${DEFAULT_SERVER}/hiscores" target="_blank">x</a>`);
         expect(configureServer(html)).toBe(html);
+    });
+    test('the shim sets each Hiscores link to the server of config.js when the page has loaded', () => {
+        const link = { href: `https://${DEFAULT_SERVER}/hiscores` }, handlers: Record<string, (() => void)[]> = {};
+        runInNewContext(shimSource, {
+            FLEET_CONFIG: { server: 'game.example.test' }, fetch: async () => new Response('{}'), Response, AbortSignal, URLSearchParams, Date, setTimeout, setInterval, clearInterval,
+            location: { hostname: 'example.test', pathname: '/', search: '' }, localStorage: { getItem: () => '', setItem() {}, removeItem() {} },
+            document: { body: null, querySelector: () => null, querySelectorAll: (selector: string) => selector === 'a[href$="/hiscores"]' ? [link] : [], addEventListener: (name: string, fn: () => void) => { (handlers[name] ??= []).push(fn); } }
+        });
+        for (const fn of handlers.DOMContentLoaded ?? []) fn();
+        expect(link.href).toBe('https://game.example.test/hiscores');
     });
     test('the imported page loads config.js before shim.js and uses the setting', () => {
         const html = readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
         expect(html.indexOf('config.js')).toBeGreaterThan(0);
         expect(html.indexOf('config.js')).toBeLessThan(html.indexOf('shim.js'));
         expect(html).not.toContain(`'wss://${DEFAULT_SERVER}/worldfeed'`);
+        expect(html).not.toContain('onclick="this.href=');
     });
 });
 
