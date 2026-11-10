@@ -59,6 +59,11 @@ describe('demo data', () => {
         for (const row of state.roster) expect(row.length).toBe(5);
         expect(state.roster.length).toBe(state.worldPlayers);
     });
+    test('a bot that is logged out is offline and not in the roster', () => {
+        const off = state.bots.filter(b => !b.inWorld);
+        expect(off.map(b => b.operation)).toEqual(['offline']);
+        expect(state.roster.some(row => row[0] === off[0]!.name)).toBe(false);
+    });
     test('every item a bot holds has an icon id', () => {
         for (const bot of state.bots) for (const item of bot.inventory) expect(state.icons[item.name]).toBe(String(item.id));
     });

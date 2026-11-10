@@ -44,7 +44,7 @@ The page refuses a file that has no `bots` list or no numeric `now`. The page al
 | `at`, `started`, `lastSeen` | time | The last state, the login and the last sight of the bot |
 | `uptime` | ms | The time since the login |
 | `fresh`, `inWorld`, `seenInFeed` | boolean | The state is current. The bot is logged in. The world feed shows the bot |
-| `operation` | text | How the publisher knows the state. The demo sends `"observed"` |
+| `operation` | text | The state of the bot. `"observed"` is a bot that plays now. `"offline"` is a bot that is logged out. The page also knows `"paused"`, `"blocked"`, `"failed"`, `"died"`, `"ended"`, `"reserved"`, `"unobserved"` and `"active-stale"` |
 | `pos` | object | `{ x, z, level }` in game tiles |
 | `live` | object or null | The row of the bot in the world feed: `{ name, x, z, level, combat, seen }` |
 | `hp` | object | `{ now, max }` |

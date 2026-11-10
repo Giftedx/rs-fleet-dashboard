@@ -35,7 +35,7 @@ export function makeDemo(now: number) {
         return {
             name: d.name, server: 'demo', side: 'demo', practice: false, reserved: false,
             at: now - (d.online ? 4_000 : 3 * hour), started: now - (40 + i * 25) * minute, fresh: d.online, inWorld: d.online,
-            operation: 'observed', pos: { x: d.x, z: d.z, level: 0 },
+            operation: d.online ? 'observed' : 'offline', pos: { x: d.x, z: d.z, level: 0 },
             live: d.online ? { name: d.name, x: d.x, z: d.z, level: 0, combat: 20 + i * 9, seen: now - 4_000 } : null,
             hp: { now: 10 + i * 6 - (i % 3), max: 10 + i * 6 }, combat: 20 + i * 9,
             skills, quests: [{ id: 7333, name: "Cook's Assistant", state: i % 2 ? 'complete' : 'not started' }, { id: 7344, name: 'Sheep Shearer', state: 'not started' }], questsAt: now - minute,
