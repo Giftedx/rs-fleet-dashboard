@@ -1,5 +1,7 @@
 # rs-fleet-dashboard
 
+[![test](https://github.com/Giftedx/rs-fleet-dashboard/actions/workflows/test.yml/badge.svg)](https://github.com/Giftedx/rs-fleet-dashboard/actions/workflows/test.yml)
+
 A dashboard for a team of [rs-sdk](https://github.com/MaxBittker/rs-sdk) bots, in the style of the RuneLite client. It is a static site: no build step, no framework and no server of its own. `site/` is the whole site.
 
 The page shows:
