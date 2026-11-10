@@ -42,7 +42,7 @@ This repository holds the page. It does not hold a publisher for your bots, beca
 
 ## The 3D view
 
-`site/viewer/` is a build of the [rs-world fork](https://github.com/Giftedx/rs-world), which adds an embed API, multi-view and camera flight to [MaxBittker/rs-world](https://github.com/MaxBittker/rs-world). The view streams players from the world feed of the game server, so the server must run with `WORLD_FEED=true`.
+`site/viewer/` is a build of the [rs-world fork](https://github.com/Giftedx/rs-world), which adds an embed API and camera flight to [MaxBittker/rs-world](https://github.com/MaxBittker/rs-world). Its multi-view is a port of work by Stunned ([TestingPurposes/rs-world](https://github.com/TestingPurposes/rs-world)). The view streams players from the world feed of the game server, so the server must run with `WORLD_FEED=true`.
 
 The view needs the game cache. The cache is not in this repository.
 
@@ -124,6 +124,7 @@ On `localhost`, `?control` shows the control view without a token. The page read
 
 The code is under the BSD 2-Clause license ([LICENSE](LICENSE)).
 
+- Multi-view and the ground items in the 3D view are ports of work by Stunned ([TestingPurposes/rs-world](https://github.com/TestingPurposes/rs-world), BSD 2-Clause). The touch gestures are by Kaden Staker ([kadeski](https://github.com/kadeski)).
 - The 3D view is a build of rs-world, a fork of [rs-map-viewer](https://github.com/dennisdev/rs-map-viewer) by dennisdev (BSD 2-Clause, `site/client-assets/RS-WORLD-LICENSE.txt`).
 - The sidebar icons and the colours come from [RuneLite](https://github.com/runelite/runelite) (BSD 2-Clause, `site/client-assets/RUNELITE-FULL-LICENSE.txt`).
 - The game art and the fonts are the property of Jagex. The code license does not cover them. `site/client-assets/ATTRIBUTION.txt` lists each source.
