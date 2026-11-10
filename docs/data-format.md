@@ -4,6 +4,8 @@ The page reads `public.json`. [scripts/make-demo.ts](../scripts/make-demo.ts) bu
 
 Send every key. If you have no data for a list, send an empty list. A time is a number of milliseconds since 1970 (`Date.now()`), unless the text says a different format.
 
+A value that you do not know can be `null` where the tables say "or null". [scripts/publish.ts](../scripts/publish.ts) is an example: it knows no inventory, quest or goal, so it sends empty lists and `null`.
+
 The page refuses a file that has no `bots` list or no numeric `now`. The page also refuses a file that is older than the file it has.
 
 ## Top level
@@ -45,7 +47,7 @@ The page refuses a file that has no `bots` list or no numeric `now`. The page al
 | `uptime` | ms | The time since the login |
 | `fresh`, `inWorld`, `seenInFeed` | boolean | The state is current. The bot is logged in. The world feed shows the bot |
 | `operation` | text | The state of the bot. `"observed"` is a bot that plays now. `"offline"` is a bot that is logged out. The page also knows `"paused"`, `"blocked"`, `"failed"`, `"died"`, `"ended"`, `"reserved"`, `"unobserved"` and `"active-stale"` |
-| `pos` | object | `{ x, z, level }` in game tiles |
+| `pos` | object or null | `{ x, z, level }` in game tiles. `null` for a bot that the publisher never saw |
 | `live` | object or null | The row of the bot in the world feed: `{ name, x, z, level, combat, seen }` |
 | `hp` | object | `{ now, max }` |
 | `combat` | number | The combat level |
@@ -56,7 +58,7 @@ The page refuses a file that has no `bots` list or no numeric `now`. The page al
 | `ranks`, `ranksAt` | list, time | The hiscore rows of the bot: `{ board, rank, level, time, delta, since, hist }`. `hist` is a list of earlier ranks, oldest first |
 | `role` | text | The job type, such as `"mining"` |
 | `goal`, `currentGoal` | text | What the bot does, in words |
-| `goalSkill`, `goalLevel`, `goalNow`, `goalXp` | text, numbers | The skill of the goal, the level to reach, the level now and the XP now |
+| `goalSkill`, `goalLevel`, `goalNow`, `goalXp` | text, numbers, or null | The skill of the goal, the level to reach, the level now and the XP now |
 | `xpPerTick`, `xpPerHour`, `xpLeft`, `eta`, `rateSkill` | numbers, text | The XP rate, the XP to the goal, the time to the goal as text and the skill that the rate measures |
 | `spark` | list of numbers | Recent XP for each tick, oldest first, for the small chart |
 | `action` | text | The current action, or `"idle"` |

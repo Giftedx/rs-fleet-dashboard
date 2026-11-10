@@ -13,7 +13,7 @@ The page shows:
 - the hiscore ranks of each bot and the players above them
 - game results, alerts and market prices in a plugin sidebar
 
-<img src="docs/demo.jpg" alt="The dashboard with six demo bots: the world map, the minimap, the chat box and the Fleet panel">
+<img src="docs/demo.png" alt="The dashboard with six demo bots: the world map, the minimap, the inventory, the chat box and the Fleet panel">
 
 **Live example:** [giftedx.github.io/rs-fleet-command](https://giftedx.github.io/rs-fleet-command/) shows a fleet of bots on the rs-sdk demo world.
 
@@ -31,7 +31,7 @@ bun install
 bun run demo
 ```
 
-Open `http://127.0.0.1:3200`. The command writes `demo/public.json` with six made-up bots and serves the page with it. The 3D view stays empty until you install the game cache (below).
+Open `http://127.0.0.1:3200`. The command writes `demo/public.json` with six made-up bots and serves the page with it. The picture above is this demo. The 3D view stays empty until you install the game cache (below).
 
 ## Show your own bots
 

@@ -69,6 +69,10 @@ describe('demo data', () => {
         expect(source).toContain('Math.pow(2, level / 10) * 300');
         expect([xpFor(1), xpFor(2), xpFor(99)]).toEqual([0, 80, 998458]);
     });
+    test('the market panel has items, each with an ask above its bid', () => {
+        expect(state.economy.supplies.length).toBeGreaterThan(0);
+        for (const item of state.economy.supplies) expect(item.ask).toBeGreaterThan(item.bid);
+    });
     test('every item a bot holds has an icon id', () => {
         for (const bot of state.bots) for (const item of bot.inventory) expect(state.icons[item.name]).toBe(String(item.id));
     });

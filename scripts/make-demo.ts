@@ -73,7 +73,15 @@ export function makeDemo(now: number) {
         icons: Object.fromEntries(DEMO.flatMap(d => d.items.map(([id, name]) => [name, String(id)]))),
         results: bots.slice(0, 4).map((b, i) => ({ at: now - (i + 1) * 9 * minute, name: b.name, ok: i !== 2, text: i === 2 ? 'ran out of food' : b.goal })),
         events: [], alerts: [],
-        economy: { farmers: [], goldPerTick: 0, itemExamine: { Feather: 'Used for fly fishing.' }, itemValues: { Feather: 3, 'Iron ore': 60, 'Willow logs': 25, 'Steel bar': 420 }, pricesAt: now - 5 * minute, supplies: [], trend: [] },
+        economy: { farmers: [], goldPerTick: 0, itemExamine: { Feather: 'Used for fly fishing.' }, itemValues: { Feather: 3, 'Iron ore': 60, 'Willow logs': 25, 'Steel bar': 420 }, pricesAt: now - 5 * minute, trend: [],
+            // What the market panel lists: the best ask and bid, the stock on offer, the mean trade price and the shop price.
+            supplies: [
+                { id: 314, name: 'Feather', ask: 4, bid: 3, stock: 12400, vwap: 3.4, base: 2 },
+                { id: 440, name: 'Iron ore', ask: 65, bid: 58, stock: 830, vwap: 60.2, base: 17 },
+                { id: 1519, name: 'Willow logs', ask: 28, bid: 24, stock: 2150, vwap: 25.1, base: 40 },
+                { id: 2353, name: 'Steel bar', ask: 440, bid: 410, stock: 96, vwap: 421.5, base: 100 }
+            ]
+        },
         coordination: { agents: [], available: false, counts: { running: 0, pending: 0, succeeded: 0, failed: 0 }, fresh: false, paused: false, tasks: [] },
         fleetSides: { at: now, sides: [{ side: 'demo', at: now, late: false, accounts: bots.map(b => ({ name: b.name, at: b.at, total: b.skills.reduce((a, s) => a + s.level, 0) })) }] },
     };
