@@ -15,6 +15,8 @@ The page shows:
 
 <img src="docs/demo.jpg" alt="The dashboard with six demo bots: the world map, the minimap, the chat box and the Fleet panel">
 
+**Live example:** [giftedx.github.io/rs-fleet-command](https://giftedx.github.io/rs-fleet-command/) shows a fleet of bots on the rs-sdk demo world.
+
 This is an independent project. It is not the RuneLite client. It is not affiliated with RuneLite or with Jagex.
 
 ## Try it with demo data
