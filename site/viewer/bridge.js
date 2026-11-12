@@ -264,9 +264,14 @@
                   if (r.e === "oa") {
                     if (r.id >= 0 && r.n >= 1)
                       list.push({ f: !0, n: r.n });
-                  } else if (r.e === "od")
-                    list.shift();
-                  else if (r.n >= 1) {
+                  } else if (r.e === "od") {
+                    const p = list.shift();
+                    if (p && !p.f) {
+                      const j = list.findIndex((q) => q.f);
+                      if (j >= 0)
+                        list[j].f = !1;
+                    }
+                  } else if (r.n >= 1) {
                     const i = list.findIndex((p) => p.n === r.n0), p = list[i >= 0 ? i : 0];
                     if (p && !p.f) {
                       const j = list.findIndex((q) => q.f && q.n === r.n0);
