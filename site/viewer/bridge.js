@@ -231,10 +231,10 @@
               return data === event.data ? event : new host.MessageEvent("message", { data, origin: event.origin });
             };
             let area = null, seenVersion = -1;
-            const feedObjs = new Map, shown = new Map, inArea = (a, x, z) => !!a && x >= a.x && x < a.x + a.w && z >= a.z && z < a.z + a.h, addGround = (event) => {
+            const piles = new Map, inArea = (a, x, z) => !!a && x >= a.x && x < a.x + a.w && z >= a.z && z < a.z + a.h, addGround = (event) => {
               if (typeof event?.data !== "string" || event.data.length > 2000000 || !event.data.includes('"tick"'))
                 return event;
-              if (seenVersion === groundVersion && !/"(?:za|oa|od|reset)"/.test(event.data))
+              if (seenVersion === groundVersion && !/"(?:za|oa|od|oc|reset)"/.test(event.data))
                 return event;
               let m;
               try {
@@ -245,63 +245,69 @@
               if (m?.t !== "tick")
                 return event;
               const w = Array.isArray(m.w) ? m.w : [];
-              if (m.reset) {
-                feedObjs.clear();
-                shown.clear();
-              }
+              if (m.reset)
+                piles.clear();
               for (const r of w)
                 if (r?.e === "za" && [r.x, r.z, r.w, r.h].every(Number.isFinite)) {
                   const next = { x: r.x, z: r.z, w: r.w, h: r.h };
-                  if (r.r) {
-                    feedObjs.clear();
-                    shown.clear();
-                  } else
-                    for (const map of [feedObjs, shown])
-                      for (const k of [...map.keys()]) {
-                        const [x, z] = k.split(",").map(Number);
-                        if (!inArea(area, x, z) || !inArea(next, x, z))
-                          map.delete(k);
-                      }
-                  area = next;
-                } else if (r?.e === "oa" || r?.e === "od") {
-                  const g = `${r.x},${r.z},${r.l},${r.id}`, n = feedObjs.get(g) ?? 0;
-                  if (r.e === "oa")
-                    feedObjs.set(g, n + 1);
-                  else if (n > 1)
-                    feedObjs.set(g, n - 1);
-                  else if (n === 1)
-                    feedObjs.delete(g);
+                  if (r.r)
+                    piles.clear();
                   else
-                    for (const k of shown.keys())
-                      if (k.startsWith(g + ",")) {
-                        shown.delete(k);
-                        break;
+                    for (const g of [...piles.keys()]) {
+                      const [x, z] = g.split(",").map(Number);
+                      if (!inArea(area, x, z) || !inArea(next, x, z))
+                        piles.delete(g);
+                    }
+                  area = next;
+                } else if ((r?.e === "oa" || r?.e === "od" || r?.e === "oc") && [r.x, r.z, r.l, r.id].every(Number.isSafeInteger)) {
+                  const g = `${r.x},${r.z},${r.l},${r.id}`, list = piles.get(g) ?? [];
+                  if (r.e === "oa") {
+                    if (r.id >= 0 && r.n >= 1)
+                      list.push({ f: !0, n: r.n });
+                  } else if (r.e === "od")
+                    list.shift();
+                  else if (r.n >= 1) {
+                    const i = list.findIndex((p) => p.n === r.n0), p = list[i >= 0 ? i : 0];
+                    if (p && !p.f) {
+                      const j = list.findIndex((q) => q.f && q.n === r.n0);
+                      if (j >= 0) {
+                        list[j].f = !1;
+                        p.f = !0;
                       }
+                    }
+                    if (p)
+                      p.n = r.n;
+                  }
+                  list.length ? piles.set(g, list) : piles.delete(g);
                 }
               seenVersion = groundVersion;
-              const want = new Map, nth = new Map;
+              const want = new Map;
               if (area)
                 for (const row of botGround) {
                   if (!inArea(area, row[0], row[1]))
                     continue;
-                  const g = row.slice(0, 4).join(","), i = (nth.get(g) ?? 0) + 1;
-                  nth.set(g, i);
-                  if (i > (feedObjs.get(g) ?? 0))
-                    want.set(g + "," + i, row);
+                  const g = row.slice(0, 4).join(","), list = want.get(g) ?? [];
+                  list.push(row[4]);
+                  want.set(g, list);
                 }
               const add = [];
-              for (const [k, row] of shown) {
-                const next = want.get(k);
-                if (!next || next[4] !== row[4]) {
-                  add.push({ e: "od", x: row[0], z: row[1], l: row[2], id: row[3] });
-                  shown.delete(k);
+              for (const g of new Set([...piles.keys(), ...want.keys()])) {
+                const list = piles.get(g) ?? [], feed = list.filter((p) => p.f).map((p) => p.n), ours = [...want.get(g) ?? []], now = list.filter((p) => !p.f).map((p) => p.n);
+                for (const n of feed) {
+                  const i = ours.indexOf(n);
+                  if (i >= 0)
+                    ours.splice(i, 1);
                 }
+                if (now.length === ours.length && now.every((n, i) => n === ours[i]))
+                  continue;
+                const [x, z, l, id] = g.split(",").map(Number);
+                for (let i = 0;i < list.length; i++)
+                  add.push({ e: "od", x, z, l, id });
+                const next = [...feed.map((n) => ({ f: !0, n })), ...ours.map((n) => ({ f: !1, n }))];
+                for (const p of next)
+                  add.push({ e: "oa", x, z, l, id, n: p.n });
+                next.length ? piles.set(g, next) : piles.delete(g);
               }
-              for (const [k, row] of want)
-                if (!shown.has(k)) {
-                  add.push({ e: "oa", x: row[0], z: row[1], l: row[2], id: row[3], n: row[4] });
-                  shown.set(k, row);
-                }
               if (!add.length)
                 return event;
               m.w = [...w, ...add];
