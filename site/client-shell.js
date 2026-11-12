@@ -34,7 +34,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // A visitor on a phone starts on the world. The inventory opens from its tab buttons.
   if(phoneWidth.matches&&!window.atlasOperator())hud.classList.add('game-panel-hidden');
   phoneWidth.addEventListener('change',e=>hud.classList.toggle('chat-hidden',e.matches));
-  hud.innerHTML=`<button class="game-xp" title="XP Tracker" aria-label="XP Tracker">XP</button><div class="game-orbs" aria-label="Player status"></div><div class="xp-drops" aria-hidden="true"></div><div class="xp-globes" aria-label="XP globes"></div><div class="game-overlay" aria-label="Overlay"></div><div class="game-infoboxes" aria-label="Infoboxes"></div><div class="game-tip" hidden></div><div class="game-screen" id="game-loading"><div class="game-screen-box"><h2>Welcome to RuneScape</h2><p>Loading - please wait.</p></div></div><div class="game-screen" id="game-lost" hidden><div class="game-screen-box"><p>Connection lost.</p><p>Please wait - attempting to reestablish.</p></div></div><div class="game-minimap" aria-label="Minimap"><canvas width="146" height="146"></canvas><canvas class="minimap-frame" aria-hidden="true"></canvas><img class="minimap-compass" src="${asset('compass.png')}" alt="" title="Compass"><button class="game-worldmap" data-places title="Places: move the camera" aria-label="Places"><img src="${asset('worldmap-icon.png')}" alt=""></button></div><section class="game-tabs" aria-label="Game interface"><nav class="tab-row" aria-label="Primary game tabs"></nav><div class="game-panel" id="game-panel"></div><nav class="tab-row" aria-label="Social and settings tabs"></nav></section><button class="chat-toggle" aria-label="Toggle chat">▾ Chat</button><section class="game-chat" aria-label="In-game chat"><div class="game-chat-lines" role="log" aria-live="polite"></div><form class="chat-input"><span id="chat-name">Spectator:</span><input aria-label="Chat message or local command" autocomplete="off" placeholder="*"></form><nav class="chat-channels" aria-label="Chat channels"></nav></section>`;
+  hud.innerHTML=`<button class="game-xp" title="XP Tracker" aria-label="XP Tracker">XP</button><div class="game-orbs" aria-label="Player status"></div><div class="xp-drops" aria-hidden="true"></div><div class="xp-globes" aria-label="XP globes"></div><div class="game-overlay" aria-label="Overlay"></div><div class="game-infoboxes" aria-label="Infoboxes"></div><div class="game-tip" hidden></div><div class="game-screen" id="game-loading"><div class="game-screen-box"><h2>Welcome to RuneScape</h2><p>Loading - please wait.</p></div></div><div class="game-screen" id="game-lost" hidden><div class="game-screen-box"><p>Connection lost.</p><p>Please wait - attempting to reestablish.</p></div></div><div class="game-minimap" aria-label="Minimap"><canvas width="146" height="151"></canvas><img class="minimap-compass" src="${asset('compass.png')}" alt="" title="Compass: face north"><canvas class="minimap-frame" width="249" height="168" aria-hidden="true"></canvas><button class="game-worldmap" data-places title="Places: move the camera" aria-label="Places"><img src="${asset('worldmap-icon.png')}" alt=""></button></div><section class="game-tabs" aria-label="Game interface"><nav class="tab-row" aria-label="Primary game tabs"></nav><div class="game-panel" id="game-panel"></div><nav class="tab-row" aria-label="Social and settings tabs"></nav></section><button class="chat-toggle" aria-label="Toggle chat">▾ Chat</button><section class="game-chat" aria-label="In-game chat"><div class="game-chat-lines" role="log" aria-live="polite"></div><form class="chat-input"><span id="chat-name">Spectator:</span><input aria-label="Chat message or local command" autocomplete="off" placeholder="*"></form><nav class="chat-channels" aria-label="Chat channels"></nav></section>`;
   app.append(hud);
   const title=document.createElement('div');title.className='client-title';title.innerHTML=`<img src="${asset('runelite.png')}" alt=""><span>RuneLite — Swarm</span><span class="connection">● Live world</span><div class="focus" id="client-focus" role="group" aria-label="3D camera focus" data-state="free"><button class="focus-step" data-focus-step="-1" aria-label="Previous account in the world" title="Previous account in the world · [">‹</button><button class="focus-now" aria-haspopup="listbox" aria-expanded="false"><i class="focus-dot"></i><span class="focus-name">Free camera</span><svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg></button><button class="focus-step" data-focus-step="1" aria-label="Next account in the world" title="Next account in the world · ]">›</button><button class="focus-wall" aria-pressed="false" hidden title="Fleet wall: up to 16 of our accounts in the world, each in its own 3D view, tiled. Click a view to focus it, double click to follow that account. · \\">Wall</button><div class="focus-menu"><input class="focus-find" aria-label="Find an account" placeholder="Find an account…" autocomplete="off" spellcheck="false"><div class="focus-list" role="listbox" aria-label="Accounts"></div></div></div><button id="client-sidebar" title="Toggle plugin sidebar" aria-label="Toggle plugin sidebar" aria-expanded="true">❯</button>`;app.append(title);
   const followTitle=()=>{const name=document.getElementById('client-plugin-name')?.textContent;document.title='RuneLite — Swarm'+(name?' · '+name:'');writeLink();};
@@ -214,14 +214,14 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const keys=(...k)=>k.map(x=>'<kbd class="k">'+E(x)+'</kbd>').join(' '),ptr=(...k)=>k.map(x=>'<kbd class="p">'+E(x)+'</kbd>').join(' '),owner=window.atlasOperator();
     const link=(href,text)=>'<a href="'+href+'" target="_blank" rel="noopener">'+text+'</a>';
     return '<div class="xp-panel"><div class="xp-box"><div class="xp-head"><span>RuneLite — Swarm</span></div><p class="xp-muted">Our bot team on the rs-sdk demo world, a 2004 RuneScape server. Not the RuneLite client. Not affiliated with Jagex or RuneLite.</p><div class="info-data">'+infoData()+'</div></div>'+
-      (owner?'':'<div class="xp-box"><div class="xp-head"><span>Controls</span></div>'+infoRow(keys('[',']'),'previous or next account',true)+infoRow(keys('W','A','S','D'),'fly free',true)+infoRow(ptr('Drag'),'turn the camera',true)+infoRow(ptr('Wheel','Pinch'),'zoom',true)+infoRow(keys('Ctrl','K'),'find anything',true)+'</div>')+
+      (owner?'':'<div class="xp-box"><div class="xp-head"><span>Controls</span></div>'+infoRow(keys('[',']'),'previous or next account',true)+infoRow(keys('W','A','S','D'),'fly free',true)+infoRow(ptr('Drag'),'turn the camera',true)+infoRow(ptr('Wheel','Pinch'),'zoom',true)+infoRow(ptr('Wheel on the minimap'),'zoom the minimap',true)+infoRow(keys('Ctrl','K'),'find anything',true)+'</div>')+
       '<div class="xp-box info-wall"><div class="xp-head"><span>Fleet wall</span></div>'+infoRow(keys('\\'),'our accounts side by side',true)+infoRow(keys('←','↑','↓','→')+' '+keys('H','J','K','L'),'move the focus',true)+infoRow(keys('1')+'<span class="k"> – </span>'+keys('9')+' '+ptr('Click'),'focus that view',true)+infoRow(keys('Shift','Arrow')+' '+ptr('Drag a title'),'swap two views',true)+infoRow(keys('P')+' '+ptr('Pin'),'keep a view in its place',true)+infoRow(ptr('Drag a gap'),'size the views',true)+infoRow(keys('Enter'),'make it the main view, then follow it',true)+infoRow(ptr('Double click'),'follow that account',true)+infoRow(keys('Space'),'next layout',true)+infoRow(keys('F'),'focus layout',true)+infoRow(keys('Esc'),'leave the wall',true)+'</div>'+
       '<div class="xp-box"><div class="xp-head"><span>Marks</span></div>'+
       infoRow('Ours','<b class="mark-name">Name</b> <i class="mark-dot on"></i> playing <i class="mark-dot"></i> not playing')+infoRow('Others','<i class="mark-dot other"></i> player <i class="mark-dot rival"></i> ranked rival <i class="mark-dot farm"></i> bot farm')+(owner?infoRow('⟦MAIN⟧ / Hidden','an account this page does not show')+infoRow('~ before a rank','the last rank we read; it can be old'):'')+'</div>'+
       '<div class="xp-box info-sources"><div class="xp-head"><span>Sources</span></div>'+
       infoRow('Client look, icons',link('https://github.com/runelite/runelite','RuneLite')+' · '+link(asset('RUNELITE-FULL-LICENSE.txt'),'BSD 2-Clause'))+
-      infoRow('3D view, fonts, minimap',link('https://github.com/MaxBittker/rs-world','rs-world')+' · '+link(asset('RS-WORLD-LICENSE.txt'),'BSD 2-Clause'))+
-      infoRow('Items, NPCs, sprites',link('https://github.com/MaxBittker/rs-sdk','rs-sdk')+', Lost City content · MIT')+
+      infoRow('3D view, fonts, world map icon',link('https://github.com/MaxBittker/rs-world','rs-world')+' · '+link(asset('RS-WORLD-LICENSE.txt'),'BSD 2-Clause'))+
+      infoRow('Items, NPCs, sprites, minimap frame',link('https://github.com/MaxBittker/rs-sdk','rs-sdk')+', Lost City content · MIT')+
       infoRow('Tab, orb, prayer, spell icons',link('https://oldschool.runescape.wiki','OSRS Wiki'))+
       infoRow('Players, hiscores, prices',link('https://rs-sdk-demo.fly.dev','rs-sdk demo server'))+
       infoRow('Game art','© Jagex')+
@@ -417,58 +417,116 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     modal.refreshObservation=draw;
     modal.querySelector('[aria-label="Close bank"]').onclick=()=>modal.remove();modal.querySelector('input').oninput=draw;modal.querySelector('.bank-tabs').onclick=()=>toast('Only the combined bank inventory is reported.');hud.append(modal);draw();
   }
-  // Orbs as RuneLite draws them: a stone ring, a dark well, a liquid fill as high as the value (red HP, cyan Prayer)
-  // with a gloss and the skill icon on top, and the number on a plate to the left in RuneLite's red-yellow-green.
-  const orbIcons={hp:'skill-hitpoints.png',prayer:'skill-prayer.png'},orbFill={hp:['#e2382c','#b00905'],prayer:['#4a3d78','#27203b']},orbImg={};
+  // Orbs as RuneLite has them, on the game's orb art (34 px): a stone ring, the ball as high as the value over a
+  // drained ball, the icon on top, and the number on a stone plate to the left in RuneLite's red-yellow-green.
+  const STONE={edge:'#322b19',light:'#5d544a',mid:'#4c4338',well:'#28221a'};
   const orbColour=(v,max)=>{if(v==null||!max)return '#ffff00';const f=Math.max(0,Math.min(1,v/max));return `rgb(${Math.round(f<0.5?255:510*(1-f))},${Math.round(f<0.5?510*f:255)},0)`;};
-  const hiDpi=(c,w,h)=>{const r=Math.max(1,Math.round(window.devicePixelRatio||1));c.width=w*r;c.height=h*r;c.style.width=w+'px';c.style.height=h+'px';const g=c.getContext('2d');g.scale(r,r);return g;};
-  // Size and place as the game's minimap (oldschool.runescape.wiki/images/Minimap.png; ring centre fitted to the ring's
-  // edge pixels, outer radius 81): 27 px orbs, HP at (-94.2, -24.5), Prayer at (-95.2, +9), the XP orb at
-  // (-117.2, -45.5), the compass dial at (-72.7, -62).
-  const ORB=27;
+  // Each orb picture is split once. The ball is every pixel inside the ring that the icon's black outline does not
+  // enclose; the drained copy has a dark ball, and the ring and the icon stay as they are.
+  const orbArt={};
+  function orbSprite(id){
+    let a=orbArt[id];if(a)return a;a=orbArt[id]={full:null,empty:null,wait:new Set()};
+    const img=new Image();img.onload=()=>{
+      const N=34,sheet=()=>{const c=document.createElement('canvas');c.width=c.height=N;return c;},full=sheet(),empty=sheet(),fg=full.getContext('2d');fg.drawImage(img,0,0);
+      const d=fg.getImageData(0,0,N,N),p=d.data,ring=new Set([STONE.edge,STONE.light,STONE.mid].map(h=>parseInt(h.slice(1),16))),rgb=i=>p[i*4]<<16|p[i*4+1]<<8|p[i*4+2];
+      const ball=i=>p[i*4+3]>0&&!ring.has(rgb(i))&&Math.hypot(i%N-16.5,(i/N|0)-16.5)<14.5,outline=i=>Math.max(p[i*4],p[i*4+1],p[i*4+2])<3;
+      const open=new Uint8Array(N*N),todo=[];for(let i=0;i<N*N;i++)if(ball(i)&&[i-1,i+1,i-N,i+N].some(j=>!ball(j)))todo.push(i);
+      while(todo.length){const i=todo.pop();if(open[i]||!ball(i)||outline(i))continue;open[i]=1;todo.push(i-1,i+1,i-N,i+N);}
+      for(let i=0;i<N*N;i++)if(open[i]){const l=10+(p[i*4]*0.3+p[i*4+1]*0.59+p[i*4+2]*0.11)*0.14;p[i*4]=l;p[i*4+1]=l*0.9;p[i*4+2]=l*0.78;}
+      empty.getContext('2d').putImageData(d,0,0);a.full=full;a.empty=empty;for(const c of a.wait)if(c.isConnected)drawOrb(c);a.wait.clear();
+    };img.src=asset('orb-'+id+'.png');return a;
+  }
   function drawOrb(c){
-    const id=c.dataset.orb,frac=Number(c.dataset.frac)||0,g=hiDpi(c,ORB,ORB),m=ORB/2,R=m-0.5,r=R-3;
-    // The game's orb: a dark frame (#5d544a) with a black edge, a dark empty part, and the colour disc as high as the value.
-    g.beginPath();g.arc(m,m,R,0,Math.PI*2);g.fillStyle='#5d544a';g.fill();g.lineWidth=1;g.strokeStyle='#000';g.stroke();
-    g.beginPath();g.arc(m,m,R-1.5,0,Math.PI*2);g.strokeStyle='#7a6f60';g.stroke();
-    g.beginPath();g.arc(m,m,r,0,Math.PI*2);g.fillStyle='#1a1510';g.fill();
-    g.save();g.beginPath();g.arc(m,m,r,0,Math.PI*2);g.clip();
-    const top=m+r-2*r*frac,disc=g.createRadialGradient(m-3,m-4,1,m,m,r);disc.addColorStop(0,orbFill[id][0]);disc.addColorStop(1,orbFill[id][1]);g.fillStyle=disc;g.fillRect(0,top,ORB,ORB);g.restore();
-    g.beginPath();g.arc(m,m,r,0,Math.PI*2);g.strokeStyle='#000';g.stroke();
-    // The icon a little brighter with a dark edge, so the heart stands out on the red disc as in the game.
-    const draw=img=>{g.save();g.shadowColor='rgba(0,0,0,0.85)';g.shadowOffsetX=1;g.shadowOffsetY=1;g.filter='brightness(1.35)';g.drawImage(img,m-6.5,m-6.5,13,13);g.restore();};
-    let img=orbImg[id];if(!img){img=orbImg[id]=new Image();img.src=asset(orbIcons[id]);}
-    if(img.complete&&img.naturalWidth)draw(img);else img.addEventListener('load',()=>draw(img),{once:true});
+    const a=orbSprite(c.dataset.orb),g=c.getContext('2d'),frac=Number(c.dataset.frac)||0,ox=c.width-34,box=(x,y,w,h,col)=>{g.fillStyle=col;g.fillRect(x,y,w,h);};
+    g.clearRect(0,0,c.width,c.height);
+    // The number plate: a dark well with a stone edge and cut left corners; its right end is under the orb.
+    box(1,7,ox+9,20,STONE.edge);box(0,8,1,18,STONE.edge);box(1,8,ox+9,18,STONE.mid);box(1,8,ox+9,1,STONE.light);box(1,9,1,16,STONE.light);box(2,9,ox+8,16,STONE.well);
+    if(!a.full){a.wait.add(c);return;}
+    // The ball is 26 rows high from row 4. A value above zero shows one row or more.
+    const top=frac>0?Math.min(29,4+Math.round(26*(1-frac))):30;g.drawImage(a.empty,ox,0);if(top<30)g.drawImage(a.full,0,top,34,34-top,ox,top,34,34-top);
   }
-  // The minimap frame: a stone ring round the map and a socket for the compass, drawn once at the screen's scale.
+  // A disc of whole pixels: each row is as wide as the circle at the row's centre. With no colour it clears the pixels.
+  const disc=(g,cx,cy,r,col)=>{if(col)g.fillStyle=col;for(let y=Math.floor(cy-r);y<=Math.ceil(cy+r);y++){const h=r*r-(y+0.5-cy)*(y+0.5-cy);if(h<0)continue;const w=Math.sqrt(h),x0=Math.ceil(cx-w-0.5),x1=Math.floor(cx+w-0.5);if(x1<x0)continue;if(col)g.fillRect(x0,y,x1-x0+1,1);else g.clearRect(x0,y,x1-x0+1,1);}};
+  // The XP button has the ring of the orbs, drawn from pixels.
   {
-    const c=hud.querySelector('canvas.minimap-frame'),g=hiDpi(c,181,165),cx=98.5,cy=84.5;
-    const stone=(x,y,inner,outer)=>{const gr=g.createRadialGradient(x,y,inner,x,y,outer);gr.addColorStop(0,'#1e1a10');gr.addColorStop(0.25,'#322b19');gr.addColorStop(0.8,'#3d3420');gr.addColorStop(1,'#746a5a');g.beginPath();g.arc(x,y,outer,0,Math.PI*2);g.arc(x,y,inner,0,Math.PI*2,true);g.fillStyle=gr;g.fill('evenodd');g.lineWidth=1;g.strokeStyle='#000';g.beginPath();g.arc(x,y,outer,0,Math.PI*2);g.stroke();g.beginPath();g.arc(x,y,inner,0,Math.PI*2);g.stroke();};
-    stone(cx,cy,73,80);
-    // The compass sits on a light face, as in the game (about #b4a890), large enough that its N and needle both show.
-    const face=g.createRadialGradient(23,20,2,25.8,22.5,17);face.addColorStop(0,'#d6ccb3');face.addColorStop(1,'#a39880');g.beginPath();g.arc(25.8,22.5,17,0,Math.PI*2);g.fillStyle=face;g.fill();stone(25.8,22.5,17,21);
+    const c=document.createElement('canvas'),g=c.getContext('2d');c.width=c.height=27;
+    for(const [r,col] of [[13.4,STONE.edge],[12.4,STONE.light],[11.4,STONE.mid],[9.4,STONE.edge],[8.4,STONE.well]])disc(g,13.5,13.5,r,col);
+    hud.querySelector('.game-xp').style.backgroundImage=`url(${c.toDataURL()})`;
   }
-  // The minimap: the 2D map art around the observed account at 4 px a tile, every bot a dot, the observed one a
-  // white square in the centre. With no account it shows the whole known world.
+  // The minimap frame is the game's own art, cut free of the stone wall: the two carved dragons round the map, from the
+  // top-right corner of the 2004 screen frame (back.png, the 249 by 168 pixels to the right of the viewport) with the
+  // minimap stone (mapback.png) in its hole at (34, 4). Magenta is the sprites' clear colour: the map and the compass
+  // show through the two holes. The cut follows the art's own dark outline: the carving is every pixel that a fill
+  // from the hole edges reaches before it meets the outline (luma under 40), with the outline round it; the wall
+  // outside that goes clear. The compass gets the stone ring of the orbs, because the wall held its socket.
+  {
+    const box=hud.querySelector('.game-minimap'),c=box.querySelector('canvas.minimap-frame'),g=c.getContext('2d'),W=249,H=168,N=W*H,art=['back.png','mapback.png'].map(n=>{const i=new Image();i.src=asset(n);return i;});
+    const paint=()=>{if(!art.every(i=>i.complete&&i.naturalWidth))return;g.clearRect(0,0,W,H);g.drawImage(art[0],516,0,W,H,0,0,W,H);g.drawImage(art[1],34,4);
+      const d=g.getImageData(0,0,W,H),p=d.data,hole=new Uint8Array(N),dark=new Uint8Array(N);
+      for(let i=0;i<N;i++){const r=p[i*4],gr=p[i*4+1],b=p[i*4+2];if(r===255&&!gr&&b===255)hole[i]=1;else if(Math.floor((r*30+gr*59+b*11)/100)<40)dark[i]=1;}
+      // A fill over 4 neighbours from the seeds, through the pixels that pass.
+      const fill=(seeds,pass)=>{const seen=new Uint8Array(N);while(seeds.length){const i=seeds.pop();if(seen[i]||!pass(i))continue;seen[i]=1;const x=i%W;if(x>0)seeds.push(i-1);if(x<W-1)seeds.push(i+1);if(i>=W)seeds.push(i-W);if(i<N-W)seeds.push(i+W);}return seen;};
+      const beside=(i,set)=>{const x=i%W;return (x>0&&set[i-1])||(x<W-1&&set[i+1])||(i>=W&&set[i-W])||(i<N-W&&set[i+W]);};
+      const rim=[];for(let i=0;i<N;i++)if(!hole[i]&&beside(i,hole))rim.push(i);
+      const body=fill(rim,i=>!hole[i]&&!dark[i]),carving=new Uint8Array(N);
+      for(let i=0;i<N;i++){if(hole[i])continue;const x=i%W,y=i/W|0;for(let b=-1;b<=1&&!carving[i];b++)for(let a=-1;a<=1;a++){const xx=x+a,yy=y+b;if(xx>=0&&xx<W&&yy>=0&&yy<H&&body[yy*W+xx]){carving[i]=1;break;}}}
+      const border=[];for(let x=0;x<W;x++)border.push(x,N-W+x);for(let y=0;y<H;y++)border.push(y*W,y*W+W-1);
+      const wall=fill(border,i=>!hole[i]&&!carving[i]);
+      // Under the two heads the stone goes on to the edge of the art: the cut ends it at row 162.
+      for(let i=0;i<N;i++)if(hole[i]||wall[i]||(i>=163*W&&i%W>=85&&i%W<=155))p[i*4+3]=0;
+      g.putImageData(d,0,0);
+      for(const [r,col] of [[20.5,STONE.edge],[19.5,STONE.light],[18.5,STONE.mid],[17,STONE.edge],[16,null]])disc(g,50.5,20.5,r,col);
+      // The map canvas keeps only the pixels of the map hole (the hole that holds the centre of the map).
+      const inMap=fill([84*W+132],i=>hole[i]),m=document.createElement('canvas'),mg=m.getContext('2d');m.width=146;m.height=151;const md=mg.createImageData(146,151);
+      for(let y=0;y<151;y++)for(let x=0;x<146;x++)if(inMap[(y+9)*W+x+59])md.data[(y*146+x)*4+3]=255;
+      mg.putImageData(md,0,0);minimap.hole=m;box.classList.add('ready');minimap();};
+    // The first try waits for the rest of this script, because the cut draws the minimap.
+    for(const i of art)i.addEventListener('load',paint);setTimeout(paint);
+  }
+  // The minimap: the 2D map art around the observed account at 4 px a tile (the wheel changes that from 2 to 8),
+  // every bot a dot, the observed one a white square in the centre. With no account it shows the whole known world.
   // In 3D it turns with the viewer's camera (yaw from the bridge, the viewer's own formula) and centres on the followed
   // account, or on the camera in free camera and while it follows another player; the viewer's minimap is hidden
   // (client-viewer.css). In 2D it stays north-up.
   // The bridge sends the camera only when it moves, so the last one holds while the 3D frame is loaded.
   let miniView={cx:0,cz:0,PX:1,angle:0};
-  // The minimap dot of another player by class (RuneLite's minimap plugin colours): a ranked rival is blue, a bot farm account is grey, any other player is white. The sets are made once for each snapshot.
+  // A dot is the game's map dot: 4 by 5 pixels with a darker right side and a black shadow under it, upright when the
+  // map turns. A fleet bot is green (dim when it does not play). Another player by class (RuneLite's minimap
+  // plugin colours): a ranked rival is blue, a bot farm account is grey, any other player is white. The sets are made
+  // once for each snapshot.
   function minimap(){const c=hud.querySelector('.game-minimap canvas');if(!c||!S)return;const g=c.getContext('2d'),W=c.width,H=c.height,m=S.map||{x0:2368,z0:2880,w:560,h:416,scale:2};const b=account(),bp=b?.live||b?.pos,markers=mapWorld();hud.querySelector('.game-minimap')?.setAttribute('aria-label',markers.practice?'Practice minimap':'Minimap');
     const c3=typeof mode!=='undefined'&&mode==='3d'&&window.atlasCam3d&&$('#rsw')?.getAttribute('src')?window.atlasCam3d:null,p=c3&&(!bp||window.atlasFreeCamera||window.atlasFollowOther)?{x:c3.x,z:c3.z}:bp,angle=c3?(2047-c3.yaw)*Math.PI/1024:0;
-    const PX=p?4:Math.min(W/(m.w*m.scale),H/(m.h*m.scale)),cx=p?p.x:m.x0+m.w*m.scale/2,cz=p?p.z:m.z0+m.h*m.scale/2;miniView={cx,cz,PX,angle};
+    const D=minimap,PX=p?D.zoom||4:Math.min(W/(m.w*m.scale),H/(m.h*m.scale)),cx=p?p.x:m.x0+m.w*m.scale/2,cz=p?p.z:m.z0+m.h*m.scale/2;miniView={cx,cz,PX,angle};
     const compass=hud.querySelector('.minimap-compass');if(compass)compass.style.transform=angle?`rotate(${angle*180/Math.PI}deg)`:'';
-    g.clearRect(0,0,W,H);g.save();g.beginPath();g.arc(W/2,H/2,W/2,0,7);g.clip();g.fillStyle='#000';g.fillRect(0,0,W,H);if(angle){g.translate(W/2,H/2);g.rotate(angle);g.translate(-W/2,-H/2);}
-    if(typeof MAPI!=='undefined'&&MAPI){const ppt=window.atlasMapPx||1/m.scale,sw=W/PX*ppt,sh=H/PX*ppt,sx=(cx-m.x0+0.5)*ppt-sw/2,sy=(m.z0+m.h*m.scale-cz-0.5)*ppt-sh/2;g.imageSmoothingEnabled=!p||!!window.atlasMapPx;g.drawImage(MAPI,sx,sy,sw,sh,0,0,W,H);}
-    if(p&&window.atlasSquare){const half=W/PX/2;for(let mx=Math.floor((cx-half)/64);mx<=Math.floor((cx+half)/64);mx++)for(let mz=Math.floor((cz-half)/64);mz<=Math.floor((cz+half)/64);mz++){const img=window.atlasSquare(mx,mz);if(img)g.drawImage(img,W/2+(mx*64-cx-0.5)*PX,H/2-(mz*64+64-cz-0.5)*PX,64*PX,64*PX);}}
-    const D=minimap;if(!D.rival||D.at!==S.snapshotAt){D.at=S.snapshotAt;D.rival=new Set((S.rivals||[]).flatMap(r=>(r.rows||[]).filter(x=>!x.fleet).map(x=>String(x.name).toLowerCase())));D.farm=new Set((S.farms||[]).flatMap(f=>(f.names||[]).map(n=>String(n).toLowerCase())));}
-    const fleetNames=new Set(markers.bots.map(o=>o.name.toLowerCase())),dot=(x,y,s,col)=>{g.fillStyle='#000';g.fillRect(x-s/2-0.5,y-s/2+0.5,s+1,s+1);g.fillStyle=col;g.fillRect(x-s/2,y-s/2,s,s);};for(const [n,qx,qz] of markers.roster){const low=String(n).toLowerCase();if(fleetNames.has(low))continue;const x=W/2+(qx-cx)*PX,y=H/2-(qz-cz)*PX;if(x<-4||y<-4||x>W+4||y>H+4)continue;dot(x,y,2,D.rival.has(low)?'#19b3ff':D.farm.has(low)?'#9a9a9a':'#fff');}
-    for(const o of markers.bots){const q=o.live||o.pos;if(!q||(q.z>6400)!==(cz>6400)||o===b)continue;const x=W/2+(q.x-cx)*PX,y=H/2-(q.z-cz)*PX;if(x<0||y<0||x>W||y>H)continue;const[cl]=st(o);dot(x,y,3,cl==='on'?'#2bff2b':'#3d8a33');}
-    if(p){g.fillStyle='#000';g.fillRect(W/2-2.5,H/2-2.5,5,5);g.fillStyle='#fff';g.fillRect(W/2-2,H/2-2,4,4);}g.restore();}
+    // The art covers a square that holds the canvas at every angle.
+    const OX=W>>1,OY=H>>1,R=Math.ceil(Math.hypot(W,H)/2)+1,cos=Math.cos(angle),sin=Math.sin(angle);
+    g.clearRect(0,0,W,H);g.fillStyle='#000';g.fillRect(0,0,W,H);g.save();g.translate(OX,OY);if(angle)g.rotate(angle);
+    if(typeof MAPI!=='undefined'&&MAPI){const ppt=window.atlasMapPx||1/m.scale,span=2*R/PX*ppt,sx=(cx-m.x0+0.5)*ppt-span/2,sy=(m.z0+m.h*m.scale-cz-0.5)*ppt-span/2;g.imageSmoothingEnabled=!p||!!window.atlasMapPx;g.drawImage(MAPI,sx,sy,span,span,-R,-R,2*R,2*R);}
+    if(p&&window.atlasSquare){const half=R/PX;g.imageSmoothingEnabled=PX<4;for(let mx=Math.floor((cx-half)/64);mx<=Math.floor((cx+half)/64);mx++)for(let mz=Math.floor((cz-half)/64);mz<=Math.floor((cz+half)/64);mz++){const img=window.atlasSquare(mx,mz);if(img)g.drawImage(img,(mx*64-cx-0.5)*PX,-(mz*64+64-cz-0.5)*PX,64*PX,64*PX);}}
+    g.restore();
+    if(!D.rival||D.at!==S.snapshotAt){D.at=S.snapshotAt;D.rival=new Set((S.rivals||[]).flatMap(r=>(r.rows||[]).filter(x=>!x.fleet).map(x=>String(x.name).toLowerCase())));D.farm=new Set((S.farms||[]).flatMap(f=>(f.names||[]).map(n=>String(n).toLowerCase())));}
+    const hits=D.hits=[],dot=(qx,qz,col,shade,name,s)=>{const dx=(qx-cx)*PX,dy=(cz-qz)*PX,x=Math.round(OX+dx*cos-dy*sin),y=Math.round(OY+dx*sin+dy*cos);if(x<-2||y<-3||x>W+2||y>H+2)return;hits.push([x,y,name]);
+      // On the map of the whole world a dot is a square of 2 pixels, or 3 for a fleet bot, so that a crowd stays readable.
+      if(!p){const x0=x-(s>>1),y0=y-(s>>1);g.fillStyle='#000';g.fillRect(x0,y0,s+1,s+1);g.fillStyle=col;g.fillRect(x0,y0,s,s);return;}
+      g.fillStyle='#000';g.fillRect(x-2,y+1,4,1);g.fillRect(x-1,y+2,2,1);g.fillStyle=col;g.fillRect(x-1,y-2,2,4);g.fillRect(x-2,y-1,4,2);g.fillStyle=shade;g.fillRect(x+1,y-1,1,2);g.fillRect(x-1,y+1,2,1);};
+    const fleetNames=new Set(markers.bots.map(o=>o.name.toLowerCase()));for(const [n,qx,qz] of markers.roster){const low=String(n).toLowerCase();if(fleetNames.has(low))continue;if(D.rival.has(low))dot(qx,qz,'#19b3ff','#0f84c4',n,2);else if(D.farm.has(low))dot(qx,qz,'#9a9a9a','#757575',n,2);else dot(qx,qz,'#fff','#d2d2d2',n,2);}
+    for(const o of markers.bots){const q=o.live||o.pos;if(!q||(q.z>6400)!==(cz>6400)||o===b)continue;const[cl]=st(o);if(cl==='on')dot(q.x,q.z,'#2bff2b','#1fc21f',o.name,3);else dot(q.x,q.z,'#3d8a33','#2c6625',o.name,3);}
+    if(p){g.fillStyle='#fff';g.fillRect(OX-1,OY-2,3,3);}
+    // Only the pixels of the map hole stay: the frame is a cut-out, and it does not hide the rest of the square.
+    if(D.hole){g.globalCompositeOperation='destination-in';g.drawImage(D.hole,0,0);g.globalCompositeOperation='source-over';}}
   // A click on the minimap in 2D moves the camera to that tile (free camera); in 3D the view itself moves the camera.
-  hud.querySelector('.game-minimap canvas')?.addEventListener('click',e=>{if(typeof mode!=='undefined'&&mode==='3d'){toast('In 3D, drag the view to move the camera.');return;}const r=e.currentTarget.getBoundingClientRect(),W=e.currentTarget.width,H=e.currentTarget.height,mx=(e.clientX-r.left)*W/r.width-W/2,my=(e.clientY-r.top)*H/r.height-H/2;window.atlasCamera.goto(Math.round(miniView.cx+mx/miniView.PX),Math.round(miniView.cz-my/miniView.PX));});
+  const miniCanvas=hud.querySelector('.game-minimap canvas'),miniAt=e=>{const r=miniCanvas.getBoundingClientRect(),x=(e.clientX-r.left)*miniCanvas.width/r.width,y=(e.clientY-r.top)*miniCanvas.height/r.height,v=miniView,dx=x-(miniCanvas.width>>1),dy=y-(miniCanvas.height>>1),cos=Math.cos(v.angle),sin=Math.sin(v.angle);return {x,y,tx:Math.round(v.cx+(dx*cos+dy*sin)/v.PX),tz:Math.round(v.cz-(dy*cos-dx*sin)/v.PX)};};
+  miniCanvas?.addEventListener('click',e=>{if(typeof mode!=='undefined'&&mode==='3d'){toast('In 3D, drag the view to move the camera.');return;}const t=miniAt(e);window.atlasCamera.goto(t.tx,t.tz);});
+  // The wheel zooms the minimap (the game's minimap zoom): 2 to 8 pixels a tile, kept for the next visit.
+  const MINI_ZOOMS=[2,3,4,6,8];try{const z=Number(localStorage.getItem('atlasMiniZoom'));if(MINI_ZOOMS.includes(z))minimap.zoom=z;}catch{/* no storage: 4 px a tile */}
+  miniCanvas?.addEventListener('wheel',e=>{e.preventDefault();const now=minimap.zoom||4,next=MINI_ZOOMS[Math.max(0,Math.min(MINI_ZOOMS.length-1,MINI_ZOOMS.indexOf(now)+(e.deltaY<0?1:-1)))];if(next===now)return;minimap.zoom=next;try{localStorage.setItem('atlasMiniZoom',String(next));}catch{/* the zoom holds for this visit */}minimap();},{passive:false});
+  // The pointer on the minimap names the tile under it, and the players whose dots it touches.
+  miniCanvas?.addEventListener('mousemove',e=>{const t=miniAt(e),tip=hud.querySelector('.game-tip'),names=[...new Set((minimap.hits||[]).filter(h=>Math.abs(h[0]-t.x)<=3&&Math.abs(h[1]-t.y)<=3).map(h=>safeName(h[2])))];
+    tip.textContent=(names.length?names.slice(0,4).join(', ')+(names.length>4?' +'+(names.length-4):'')+' · ':'')+t.tx+', '+t.tz;tip.hidden=false;const h=hud.getBoundingClientRect();tip.style.left=Math.max(0,e.clientX-h.left-tip.offsetWidth-10)+'px';tip.style.top=(e.clientY-h.top+12)+'px';});
+  miniCanvas?.addEventListener('mouseleave',()=>{hud.querySelector('.game-tip').hidden=true;});
+  // A narrow view has no room for the orbs beside the minimap: they go in a row under it, and the XP button goes to
+  // the top right of the ring (client-shell.css, hud-narrow).
+  if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>hud.classList.toggle('hud-narrow',hud.clientWidth<500)).observe(hud);
   // XP drops (OSRS): each skill gain since the last observation floats up under the XP orb with its icon.
   let dropsFor=null,dropsXp={};
   function xpDrops(b){
@@ -663,7 +721,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const b=account(),name=b?.name??null;
     if(name!==questAccount){questAccount=name;questDetail=null;}
     app.classList.toggle('public-view',!window.atlasOperator());if(body.firstElementChild?.hasAttribute('data-snapshot-loading'))renderSnapshotPlugin(selectedPlugin);syncNotifyControls();$('#client-more').hidden=!window.atlasOperator();hud.querySelector('.game-bank')?.refreshObservation?.();camUpdate();screens();minimap();xpDrops(b);overlay();chatFeed();idleNotifier(b);levelUps();deaths();moments();if(selectedPlugin==='xp')refreshXp();if(selectedPlugin==='boards'&&body.dataset.plugin==='boards'){const head=body.querySelector('.progress-head');if(head)put(head,boardSummary()+progressPanel());const rw=body.querySelector('.rivals-wrap');if(rw&&!rw.contains(document.activeElement))put(rw,rivalsPanel());refreshHiscoreAccount();}const data=body.querySelector('.info-data');if(data)put(data,infoData());if(selectedPlugin==='ge')refreshGe();if(selectedPlugin==='world'&&body.dataset.plugin==='world')refreshWorld();infoboxes();setText(title.querySelector('.connection'),$('#connection').textContent);focusPaint();warmPlaces();welcomeCard();setText($('#chat-name'),(b?safeName(b.name):'Spectator')+':');
-    const orbBox=hud.querySelector('.game-orbs'),orbHtml=[['hp','Hitpoints',b?.hp?.now,b?.hp?.max],['prayer','Prayer',level('Prayer')?.currentLevel,level('Prayer')?.level]].map(([id,label,value,max])=>`<div class="game-orb orb-${id}" title="${label}: ${value??'not reported'}${max?' / '+max:''}"><span class="orb-num" style="color:${orbColour(value,max)}">${value??'—'}</span><canvas class="orb-art" data-orb="${id}" data-frac="${value!=null&&max?Math.max(0,Math.min(1,value/max)):0}"></canvas></div>`).join('');if(orbBox._h!==orbHtml){orbBox._h=orbHtml;orbBox.innerHTML=orbHtml;orbBox.querySelectorAll('canvas').forEach(drawOrb);}if(!(selectedTab==='settings'&&$('#game-panel').contains(document.activeElement)))gamePanel();}
+    const orbBox=hud.querySelector('.game-orbs'),orbHtml=!b?'':[['hp','Hitpoints',b.hp?.now,b.hp?.max],['prayer','Prayer',level('Prayer')?.currentLevel,level('Prayer')?.level],['run','Run energy',b.runEnergy,100]].filter(o=>o[2]!=null).map(([id,label,value,max])=>`<div class="game-orb orb-${id}" title="${label}: ${Math.floor(value)} / ${max}"><canvas class="orb-art" width="60" height="34" data-orb="${id}" data-frac="${value!=null&&max?Math.max(0,Math.min(1,value/max)):0}"></canvas><span class="orb-num" style="color:${orbColour(value,max)}">${Math.floor(value)}</span></div>`).join('');if(orbBox._h!==orbHtml){orbBox._h=orbHtml;orbBox.innerHTML=orbHtml;orbBox.querySelectorAll('canvas').forEach(drawOrb);}if(!(selectedTab==='settings'&&$('#game-panel').contains(document.activeElement)))gamePanel();}
   const previousRender=render;render=function(){previousRender();refresh();};
   const previousDrawMap=drawMap;drawMap=function(){previousDrawMap();minimap();};
   const previousPick=pick;pick=function(name){wallEnd(false);if(!touring)tourSet(false);const from=focusTarget(),b=S?.bots?.find(b=>b.name===name);previousPick(name);cam.user=false;if(mode==='2d'&&window.atlasFreeCamera&&b?.pos)window.atlasCamera.goto(b.pos.x,b.pos.z);focusMoved(from,name);refresh();};

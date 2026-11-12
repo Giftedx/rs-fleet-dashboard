@@ -24,7 +24,7 @@
         if (path === '/api/map') return { kind: 'file', file: 'map.bin' };
         // The 3D viewer is hosted next to the page (viewer/, a build of the rs-world fork); it streams
         // the public world feed itself and reads api/hidden-names and api/our-names as files beside the page.
-        if (path === '/api/viewer-health') return { kind: 'json', body: { available: true, url: 'viewer/?build=4124fea91d', reason: null } };
+        if (path === '/api/viewer-health') return { kind: 'json', body: { available: true, url: 'viewer/?build=5b476f1ff2', reason: null } };
         if (path === '/api/viewer-timing') return { kind: 'json', body: { ok: true } };
         if (path === '/api/reveal') return { kind: 'reveal' };
         if (path === '/api/our-names' || path === '/api/hidden-names') return { kind: 'json', body: [] };

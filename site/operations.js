@@ -17,6 +17,8 @@ FleetShim.ready.then(() => {
  function page(html){return '<div class="op-page">'+html+'</div>';}
  function operations(){
   const c=S?.coordination||{},all=bots(),playing=all.filter(b=>b.operation==='observed').length,attention=issues(),cap=S?.capacity,board=S?.scoreboard,sides=S?.fleetSides?.sides||[],late=sides.filter(x=>x.late);
+  // The fleet agent and the autopilot. Down: nothing runs it and no owner stop file explains that. The watchdog starts it again.
+  const ctl=meta?.controllers||[],down=ctl.filter(x=>x.state==='down');
   const kpi=(n,label,small,op,value,bad)=>'<button class="op-kpi'+(bad?' op-kpi-bad':'')+'" data-op="'+op+'" data-value="'+E(value)+'"><b>'+E(n)+'</b><span>'+E(label)+'</span><small>'+E(small)+'</small></button>';
   return page(title('Operations / live observations','Command centre','Each number opens the plugin that answers it.')+
    startBlock()+
@@ -28,13 +30,15 @@ FleetShim.ready.then(() => {
    kpi(cap?.headroomGB!=null?cap.headroomGB.toFixed(1):'—','GiB RAM headroom',(cap?.active??'—')+' / '+(cap?.cap??'—')+' bots · '+(cap?.freeGB!=null?cap.freeGB.toFixed(1):'—')+' GiB free','open','machine',cap?.headroomGB<0)+
    kpi(board?.available?(board.done?'done':board.remaining.length):'—','board goals left',board?.available?'quests '+(board.quests.live??'—')+' / '+(board.quests.total??'—')+' live':'scoreboard not available','open','boards')+
    kpi(late.length,'fleet sides late',sides.length?sides.map(x=>x.side+' '+(x.at?age(x.at):'never')).join(' · '):'no fleet-data snapshot','fleet-open','all',late.length>0)+
+   kpi(meta?.controllers?down.length:'—','controllers down',meta?.controllers?ctl.map(x=>x.label+' '+(x.state==='down'?'down'+(x.seenAt?', seen '+age(x.seenAt)+' ago':''):x.state==='stopped'?'stopped by owner':x.state==='never'?'not used here':'running')).join(' · '):'checking','open','machine',down.length>0)+
    '</div>'+incidentCards()+
    '<div class="op-card"><div class="op-card-title"><strong>Coordinator</strong>'+badge(!meta?'pending':meta.paused?'pending':meta.coordinatorRunning===true?'running':meta.coordinatorRunning===false?'failed':'pending',!meta?'Checking':meta.paused?'Paused':meta.coordinatorRunning===true?'Running':meta.coordinatorRunning===false?'Stopped':'Unknown')+'</div><p>'+(c.planner?'Planner claim in queue: '+E(c.planner.agent)+' since '+age(c.planner.startedAt)+' ago':'No planner claim in queue')+'</p><div class="op-actions">'+button('Plan next work','plan','','primary')+button('New job','dispatch')+button(meta?.paused?'Resume coordinator':'Pause coordinator',meta?.paused?'resume':'pause','','danger')+button(meta?.fleetPaused?'Clear fleet stop':'Pause swarm',meta?.fleetPaused?'swarm-resume':'swarm-pause','','danger')+'</div></div>'+
    '<div class="op-eyebrow">Model workers</div>'+['codex','claude'].map(n=>{const a=c.agents?.find(a=>a.name===n),busy=a?.planning||a?.tasks?.length;return '<div class="op-card op-agent"><span class="monogram">'+n[0].toUpperCase()+'</span><div><strong>'+n[0].toUpperCase()+n.slice(1)+'</strong><small>'+(a?.planning?'Planning next work':(a?.tasks?.length||0)+' job claims')+'</small></div>'+badge(!c.fresh?'pending':busy?'running':'pending',!c.fresh?'Queue stale':busy?'Claimed':'No claims')+'</div>';}).join('')+
    (metaError?'<div class="op-notice error">'+E(metaError)+'</div>':'')+(message?'<div class="op-notice">'+E(message)+'</div>':''));
  }
  // Why a new bot cannot start now, from the swarm's own admission rule (scripts/swarm.ts admissionDecision):
- // projected free RAM after the startup reserve must stay above max(8 GiB, minFreeGB).
+ // projected free RAM after the startup reserve must stay above the larger of FREE_FLOOR_GB (packages/core/src/memory.ts)
+ // and the plan's minFreeGB. capacityState (collection.ts) gives that floor.
  function startBlock(){
   const cap=S?.capacity;
   const line=(text,op,value)=>'<button class="op-block" data-op="'+op+'" data-value="'+E(value)+'"><b>Start blocked</b><span>'+E(text)+'</span></button>';
