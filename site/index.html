@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><base href="./"><script src="config.js?v=be4219ddf2"></script><script src="shim.js?v=41411f13ca"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="en"><head><base href="./"><script src="config.js?v=be4219ddf2"></script><script src="shim.js?v=5320b3995c"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>RuneLite — Swarm</title>
 <meta name="description" content="Watch a bot team play live on the rs-sdk demo world in 3D, with its hiscores, skills and gear.">
 <meta property="og:title" content="RuneLite — Swarm">
@@ -77,7 +77,7 @@ body{background:radial-gradient(ellipse at top,#343023,#171613 70%)}
 @media(min-width:1000px){.fleet-columns,.fleet-row{grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr) 58px 45px 42px}.work-metric{font-size:12px;color:var(--gold);white-space:nowrap}}
 #latest-gain{color:var(--win);border-color:#68745a;max-width:30%;font-size:11px;padding:2px 6px;flex:none}
 @media(max-width:1199px){#latest-gain{display:none}}
-</style><link rel="stylesheet" href="map-shell.css?v=0b8c0c1697"><link rel="stylesheet" href="client-shell.css?v=aa99e73a5d"><link rel="stylesheet" href="operations.css?v=ea9eca5cb8"><link rel="stylesheet" href="runelite-chrome.css?v=fc9ec1083e"></head><body><div class="app">
+</style><link rel="stylesheet" href="map-shell.css?v=0b8c0c1697"><link rel="stylesheet" href="client-shell.css?v=11d1159e33"><link rel="stylesheet" href="operations.css?v=ea9eca5cb8"><link rel="stylesheet" href="runelite-chrome.css?v=fc9ec1083e"></head><body><div class="app">
 <header class="mast"><div class="brand">Swarm Atlas<small>OPERATIONS / SIX GOALS / ONE CLOCK</small></div><span id="pause" class="pause">PLAN UNKNOWN</span><div class="live"><span class="wide">Active <b id="k-win">?</b></span><span id="connection" role="status">Connecting</span><a href="https://rs-sdk-demo.fly.dev/hiscores" target="_blank" rel="noreferrer">Hiscores ↗</a></div></header>
 <nav class="goals" id="goals" aria-label="All six project goals"></nav>
 <main class="bodygrid">
@@ -332,7 +332,7 @@ window.addEventListener('message',e=>{
   const v=viewerMessage(e,frame,VIEWER.origin);
   if(v&&mode==='3d'){
     if(v.state==='error'){viewerUnavailable(v.detail||'viewer reported an error');return;}
-    if(viewerCanReveal(v)){clearTimeout(VIEWER_TIMER);VIEWER_RETRIES=0;const first=VIEWER.state!=='ready',target=window.atlasFollowOther||(!window.atlasFreeCamera&&sel);VIEWER={...VIEWER,state:'ready',detail:'',feed:typeof v.feedConnected==='boolean'?v.feedConnected:null};if(window.atlasFreeCamera&&!window.atlasFollowOther&&(first||!sel))frame?.postMessage({atlasFreeCamera:true},VIEWER.origin);else if(first&&target)frame?.postMessage({follow:target},VIEWER.origin);}
+    if(viewerCanReveal(v)){clearTimeout(VIEWER_TIMER);VIEWER_RETRIES=0;const first=VIEWER.state!=='ready',target=window.atlasFollowOther||(!window.atlasFreeCamera&&sel);VIEWER={...VIEWER,state:'ready',detail:'',feed:typeof v.feedConnected==='boolean'?v.feedConnected:null};if(first&&typeof groundReady==='function')groundReady();if(window.atlasFreeCamera&&!window.atlasFollowOther&&(first||!sel))frame?.postMessage({atlasFreeCamera:true},VIEWER.origin);else if(first&&target)frame?.postMessage({follow:target},VIEWER.origin);}
     else if(VIEWER.state==='loading'&&typeof v.detail==='string')VIEWER.detail=v.detail.slice(0,180);
     showViewerStatus();
   }
@@ -350,7 +350,26 @@ function syncWorld(){
     if(Q.get('flight')==='0')url.searchParams.set('flight','0');if(Q.get('cache')==='0')url.searchParams.set('cache','0');
     const target=window.atlasFollowOther||sel;if(target&&!window.atlasFreeCamera)url.searchParams.set('follow',target);rswFor=sel;sentMaxLevel=viewerMaxLevel();url.searchParams.set('ml',String(sentMaxLevel));f.src=url.href;
   }else if(rswFor!==sel&&sel&&!window.atlasFreeCamera&&!window.atlasFollowOther&&!window.atlasWallOn?.()){rswFor=sel;f.contentWindow?.postMessage({follow:sel},VIEWER.origin);}
+  syncGround(f);
 }
+// Ground items: the world feed sends no private drop (and the live server no obj at all), so the 3D view draws what our
+// fresh accounts see on the floor (status `ground`, [x, z, level, id, count]). Two accounts beside one pile see the same
+// objs: each tile keeps the most of each type that one account sees. A viewer that turns ready again gets the rows again.
+let sentGround='';
+function groundRows(bots){
+  const most=new Map();
+  for(const b of bots){if(!b?.fresh||b.practice||!Array.isArray(b.ground))continue;const own=new Map();
+    for(const r of b.ground){if(!Array.isArray(r)||r.length!==5)continue;const g=r.slice(0,4).join(','),k=g+','+r[4],n=(own.get(k)?.n??0)+1;own.set(k,{r,n});}
+    for(const [k,v] of own)if((most.get(k)?.n??0)<v.n)most.set(k,v);}
+  const rows=[];for(const {r,n} of most.values())for(let i=0;i<n&&rows.length<1000;i++)rows.push(r);
+  return rows;
+}
+function syncGround(f){
+  if(VIEWER.state!=='ready'||!f?.contentWindow){sentGround='';return;}
+  const rows=groundRows(S?.bots??[]),key=JSON.stringify(rows);if(key===sentGround)return;
+  sentGround=key;f.contentWindow.postMessage({botGround:rows},VIEWER.origin);
+}
+function groundReady(){sentGround='';syncGround($('#rsw'));}
 
 // Roof removal (RuneLite roofremoval): the 3D view draws floors up to the followed player's. Free camera draws them all.
 const ROOF_KEY='atlas-roof-removal';let sentMaxLevel=null;
@@ -494,4 +513,4 @@ function receive(j){if(Array.isArray(j?.bots))j.bots=oneRowPerName(j.bots);SNAPS
 if(STATIC)setInterval(()=>{if(SNAPSHOT&&LIVE_ROSTER&&!window.atlasLiveRoster()){LIVE_ROSTER=null;S=SNAPSHOT;render();}},5000);
 if(STATIC)fetch('/api/state').then(r=>r.json()).then(receive).catch(()=>{connected=false;connectionState()});else{let version=null;const es=new EventSource('/events');es.onmessage=e=>{const j=JSON.parse(e.data);if(version&&j.pageVersion!==version){location.reload();return}version=j.pageVersion;receive(j)};es.onerror=()=>{connected=false;connectionState()};setInterval(connectionState,2000)}
 
-</script><script src="map-shell.js?v=b0710cd63c"></script><script src="xp-tracker.js?v=b0fdf25406"></script><script src="client-shell.js?v=dce83d9bbc"></script><script src="operations.js?v=a810337f60"></script></body></html>
+</script><script src="map-shell.js?v=b0710cd63c"></script><script src="xp-tracker.js?v=b0fdf25406"></script><script src="client-shell.js?v=8f34c1370e"></script><script src="operations.js?v=2981841752"></script></body></html>

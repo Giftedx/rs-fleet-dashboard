@@ -2,9 +2,9 @@ Client artwork sources
 
 RuneLite logo and skill icons: runelite/runelite, runelite-client/src/main/resources/net/runelite/client/ui/runelite_16.png and skill_icons/, retrieved 2026-10-28. See RUNELITE-FULL-LICENSE.txt. Interface palette source pinned in ../RUNELITE-LICENSE.txt.
 
-Game fonts, interface textures and minimap artwork: existing vendor/rs-world/src/media and src/components/rs/minimap. See RS-WORLD-LICENSE.txt for the viewer code license. RuneScape artwork remains the property of Jagex; the code license does not relicense that artwork.
+Game fonts, interface textures and the world map icon: existing vendor/rs-world/src/media and src/components/rs/minimap. See RS-WORLD-LICENSE.txt for the viewer code license. RuneScape artwork remains the property of Jagex; the code license does not relicense that artwork.
 
-Game sprite strips: existing pinned vendor/rs-sdk/server/content/sprites. Converted magenta transparency to alpha without resampling. Original Jagex game artwork; not claimed as original or BSD artwork.
+Game sprite strips: existing pinned vendor/rs-sdk/server/content/sprites. Converted magenta transparency to alpha without resampling. back.png, mapback.png and compass.png (the screen frame, the minimap stone and the compass) are unchanged copies from the same folder: the page cuts the carved dragon ring of the minimap from them and makes their magenta clear. Original Jagex game artwork; not claimed as original or BSD artwork.
 
 This is an independent spectator dashboard. It is not the RuneLite desktop client and is not affiliated with Jagex or RuneLite.
 
