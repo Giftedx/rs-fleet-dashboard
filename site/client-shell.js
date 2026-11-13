@@ -246,6 +246,15 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // and the items they use. Actions above the current level are greyed, as RuneLite greys them.
   let calcSkill=null,calcTarget=null,skillActions=null;
   fetch(asset('skill-actions.json')).then(r=>r.ok?r.json():null).then(j=>{if(j&&typeof j==='object')skillActions=j;},()=>{});
+  // Skill guide (RuneLite's Skill Calculator, in the Skills tab tooltip and the XP globes): the best action the account
+  // can do now with how many it takes to the next level, and the next actions it unlocks.
+  function skillGuide(skill,xp){
+    const X=window.atlasXp,acts=skillActions?.[String(skill).toLowerCase()];if(!X||!acts?.length||xp==null)return null;
+    const lvl=X.levelForXp(xp),left=lvl>=99?0:Math.max(0,X.xpForLevel(lvl+1)-xp);
+    const best=acts.filter(a=>a[1]<=lvl&&a[2]>0).sort((a,b)=>b[2]-a[2])[0]||null,next=acts.filter(a=>a[1]>lvl).sort((a,b)=>a[1]-b[1]||b[2]-a[2]).slice(0,3);
+    return {best:best&&left?{name:best[0],count:Math.ceil(left/best[2])}:null,next:next.map(a=>({name:a[0],level:a[1]}))};
+  }
+  const guideText=g=>!g?'':(g.best?' · '+nf(g.best.count)+' × '+g.best.name+' to level':'')+(g.next.length?' · next: '+g.next[0].name+' at '+g.next[0].level:'');
   function calcBox(b,row){
     const X=window.atlasXp,k=(b.skills||[]).find(x=>x.name===calcSkill);
     if(!calcSkill||!k||k.xp==null)return '';
@@ -416,7 +425,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   //   tiles    red: the death tile of the open recap; pies: the respawn timers
   //   marks    the Ground markers that the viewer placed; fails: orange, where an account's last run failed
   //   finder   pink: the spawns of the NPC that the NPC finder shows
-  const HL_KEY='atlas-highlights',HL_DEFAULT={players:true,npcs:true,ground:true,groundMin:1000,multi:true,tiles:true,skilling:true,trail:true,marks:true,fails:true,icons:true,items:true,invTags:true};
+  const HL_KEY='atlas-highlights',HL_DEFAULT={players:true,npcs:true,ground:true,groundMin:1000,multi:true,tiles:true,skilling:true,trail:true,marks:true,fails:true,icons:true,items:true,invTags:true,idle:true};
   const hl=(()=>{try{return {...HL_DEFAULT,...JSON.parse(localStorage.getItem(HL_KEY)||'{}')};}catch{return {...HL_DEFAULT};}})();
   const saveHl=()=>{try{localStorage.setItem(HL_KEY,JSON.stringify(hl));}catch{/* private window */}};
   // recentTargets belong to one watched account (targetsFor); another account starts an empty list.
@@ -467,7 +476,8 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   const spawnTiles=row=>{const t=[];for(let i=0;i+2<(row?.[3]?.length||0);i+=3)t.push({x:row[3][i],z:row[3][i+1],l:row[3][i+2]});return t;};
   const finderRow=()=>finderPick&&npcSpawns?npcSpawns.find(r=>r[0]===finderPick)||null:null;
   function finderMatches(q){q=q.trim().toLowerCase();if(q.length<2||!npcSpawns)return [];return npcSpawns.filter(r=>r[0].toLowerCase().includes(q)).sort((a,b)=>(b[0].toLowerCase().startsWith(q)-a[0].toLowerCase().startsWith(q))||b[3].length-a[3].length).slice(0,8);}
-  // World Map icons (RuneLite's World Map plugin) on the minimap: teleport destinations (blue) and agility shortcuts with
+  // World Map icons (RuneLite's World Map plugin) on the minimap: teleport destinations (blue), fixed-spot transports
+  // such as levers, portals and spirit trees (cyan) and agility shortcuts with
   // their level (green), from client-assets/map-icons.json; the pointer names each one, and each shop keeper.
   let mapIcons=null;
   fetch(asset('map-icons.json')).then(r=>r.ok?r.json():null).then(j=>{if(Array.isArray(j))mapIcons=j;},()=>{});
@@ -475,6 +485,11 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // client-assets/item-sources.json. "Show on map" pins a source's tiles in pink, as the NPC finder does.
   let itemSourcesData=null,sourcePin=null;
   const loadItemSources=()=>{if(itemSourcesData===null){itemSourcesData={};fetch(asset('item-sources.json')).then(r=>r.ok?r.json():{}).then(j=>{itemSourcesData=j||{};if(typeof refreshGe==='function')refreshGe();},()=>{});}};
+  // The teleport (cast from anywhere) whose destination is closest to any of these tiles (map-icons.json, kind t), for
+  // the finder and the item sources; none farther than 80 tiles, where it would not save the walk.
+  function nearestTeleport(tiles){let best=null;for(const t of tiles||[])for(const [x,z,l,k,label] of mapIcons||[]){if(k!=='t'||l!==(t.l||0)||(z>6400)!==(t.z>6400))continue;const d=Math.max(Math.abs(x-t.x),Math.abs(z-t.z));if(d<=80&&(!best||d<best.d))best={label,d};}return best;}
+  const teleText=tiles=>{const t=nearestTeleport(tiles);return t?'Closest teleport: '+t.label+', '+t.d+' tiles':'';};
+  const geTele=flat=>{const t=flat?.length?nearestTeleport(flatTiles(flat)):null;return t?' <small class="ge-tele" title="'+E('Closest teleport: '+t.label+', '+t.d+' tiles')+'">· '+E(t.label)+', '+t.d+' tiles</small>':'';};
   const flatTiles=a=>{const t=[];for(let i=0;i+2<(a?.length||0);i+=3)t.push({x:a[i],z:a[i+1],l:a[i+2]});return t;};
   // What the pink layer shows: the NPC finder's pick, else the pinned item source.
   function pinned(){const r=typeof finderRow==='function'?finderRow():null;if(r)return {label:r[0]+(r[2]?' ('+r[2]+')':''),tip:r[0]+' ('+combatText(r)+')',tiles:spawnTiles(r)};return sourcePin;}
@@ -484,9 +499,14 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // Position trail: the last 60 places of each of our accounts, from the live roster and the status files. The watched
   // account's trail is a line on the ground (yellow for its last 20 steps); every trail shows on the minimap.
   const trails=new Map();
+  // Idle markers (RuneLite's Idle Notifier, for every account): an account in the world that stays on one tile with an
+  // idle last action for 3 minutes or more gets a yellow label in 3D and a yellow ring on the minimap.
+  const idleSince=new Map();
+  const idleRows=()=>(S?.bots||[]).filter(x=>x.inWorld&&!x.practice&&idleSince.has(x.name)&&Date.now()-idleSince.get(x.name).at>=180_000).map(x=>{const i=idleSince.get(x.name);return {name:x.name,x:i.x,z:i.z,l:i.l,ms:Date.now()-i.at};});
   function trackTrails(){
     for(const x of S?.bots||[]){
-      const p=x.live||x.pos;if(!x.inWorld||!p||!Number.isInteger(p.x)||!Number.isInteger(p.z))continue;
+      const p=x.live||x.pos;if(!x.inWorld||!p||!Number.isInteger(p.x)||!Number.isInteger(p.z)){idleSince.delete(x.name);continue;}
+      {const i=idleSince.get(x.name);if(x.action!=='idle')idleSince.delete(x.name);else if(!i||i.x!==p.x||i.z!==p.z||i.l!==(p.level||0))idleSince.set(x.name,{x:p.x,z:p.z,l:p.level||0,at:Date.now()});}
       const t=trails.get(x.name)||[],last=t[t.length-1];
       if(last&&last.x===p.x&&last.z===p.z)continue;
       if(last&&(Math.abs(last.x-p.x)>40||Math.abs(last.z-p.z)>40||last.l!==(p.level||0)))t.length=0;
@@ -521,6 +541,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
       for(const r of respawnRows())if(r.left!=null&&r.total)o.pies.push({x:r.x,z:r.z,l:r.l,p:Math.max(0,Math.min(1,1-r.left/r.total))});
     }
     if(hl.marks)for(const m of marks)if(near(m.x,m.z,60))o.tiles.push({x:m.x,z:m.z,l:m.l||0,colour:m.c||MARK_COLOURS[0][0]});
+    if(hl.idle)for(const r of idleRows())if(near(r.x,r.z,60))o.tiles.push({x:r.x,z:r.z,l:r.l,colour:'#ffff00',label:safeName(r.name)+': idle '+Math.floor(r.ms/60000)+'m'});
     if(hl.fails)for(const f of failSpots())if(near(f.x,f.z,60))o.tiles.push({x:f.x,z:f.z,l:f.l,colour:'#ff9900',fill:true,label:f.label});
     {const pin=pinned();if(pin){let n=0;for(const t of pin.tiles)if(near(t.x,t.z,60)&&n++<40)o.tiles.push({x:t.x,z:t.z,l:t.l,colour:'#ff66ff',label:pin.label});}}
     return o;
@@ -533,7 +554,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   }
   function highlightsBox(){
     const box=(k,label)=>`<label class="hl-row"><input type="checkbox" data-hl="${k}" ${hl[k]?'checked':''}> ${label}</label>`;
-    return `<div class="xp-box"><div class="xp-head"><span>Highlights</span><span class="xp-muted">in the 3D view</span></div><div class="hl-grid">${box('players','Players: red can attack, cyan rivals')}${box('npcs','NPCs the account fought')}${box('ground','Floor item labels')}${box('multi','Multi-combat and Wilderness lines')}${box('tiles','Death tile and respawn pies')}${box('skilling','Trees, rocks, fishing spots and agility obstacles of the account')}${box('trail','Walked path')}${box('marks','Ground markers')}${box('fails','Where runs failed (orange)')}${box('icons','Minimap: teleports, shortcuts, shop names')}${box('items','Minimap: floor items (red)')}${box('invTags','Inventory tags: food, potions, teleports, runes')}<label class="hl-row">Hide labels below <select data-hl-min>${[0,1000,10000,100000].map(v=>`<option value="${v}" ${hl.groundMin===v?'selected':''}>${v?nf(v)+' gp':'nothing'}</option>`).join('')}</select></label></div></div>`;
+    return `<div class="xp-box"><div class="xp-head"><span>Highlights</span><span class="xp-muted">in the 3D view</span></div><div class="hl-grid">${box('players','Players: red can attack, cyan rivals')}${box('npcs','NPCs the account fought')}${box('ground','Floor item labels')}${box('multi','Multi-combat and Wilderness lines')}${box('tiles','Death tile and respawn pies')}${box('skilling','Trees, rocks, fishing spots and agility obstacles of the account')}${box('trail','Walked path')}${box('marks','Ground markers')}${box('fails','Where runs failed (orange)')}${box('idle','Idle 3+ minutes (yellow)')}${box('icons','Minimap: teleports, shortcuts, shop names')}${box('items','Minimap: floor items (red)')}${box('invTags','Inventory tags: food, potions, teleports, runes')}<label class="hl-row">Hide labels below <select data-hl-min>${[0,1000,10000,100000].map(v=>`<option value="${v}" ${hl.groundMin===v?'selected':''}>${v?nf(v)+' gp':'nothing'}</option>`).join('')}</select></label></div></div>`;
   }
   function markersBox(){
     const b=account(),p=b?.live||b?.pos||null,colours=MARK_COLOURS.map(([c,n])=>'<option value="'+c+'" '+(c===markColour?'selected':'')+'>'+n+'</option>').join('');
@@ -543,7 +564,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   function finderList(){
     const r=finderRow();
     if(r){const tiles=spawnTiles(r),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,best=c?tiles.map(t=>({...t,d:Math.max(Math.abs(t.x-c.x),Math.abs(t.z-c.z))})).sort((a,b)=>a.d-b.d)[0]:null;
-      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button></div>';}
+      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+'</div>';}
     if(npcSpawns!==null&&!npcSpawns.length)return '<span class="xp-muted">Loading NPC spawns…</span>';
     const m=finderMatches(finderQuery);
     return m.length?m.map(x=>'<button class="finder-row" data-finder-pick="'+E(x[0])+'"><span>'+E(x[0])+'</span><small>'+combatText(x)+' · '+x[3].length/3+'</small></button>').join(''):finderQuery.trim().length>=2?'<span class="xp-muted">No NPC by that name.</span>':'';
@@ -670,7 +691,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const nearBox=b=>{const near=nearby(b);if(!near.length)return '';const fleet=new Set(S.bots.map(x=>x.name.toLowerCase())),ours=near.filter(r=>fleet.has(String(r[0]).toLowerCase())).length;return box(asset('rl-fleet.png'),String(near.length),near.length+(near.length===1?' player':' players')+' within 15 tiles'+(ours?' · '+ours+' ours':''));};
     // Ammo (RuneLite's ammo plugin): the stack in the ammo slot (13) with its count.
     // Food (RuneLite's supplies count): the food in the pack (item-stats.json: what heals) with its count; red at 2 or fewer.
-    const foodBox=b=>{const f=typeof foodOf==='function'?foodOf(b):{total:0};if(!f.total)return '';const top=f.items[0];return `<button class="infobox${f.total<=2?' boost-down':''}" title="${E('Food: '+f.items.map(i=>i.name+' × '+i.count).join(', '))}">${icon(top.name,24)}<span>${f.total}</span></button>`;};
+    const foodBox=b=>{const f=typeof foodOf==='function'?foodOf(b):{total:0};if(!f.total)return '';const top=f.items[0],hp=f.items.reduce((n,i)=>n+(Number(String(itemStats[i.name]||'').match(/heals (\d+)/)?.[1])||0)*i.count,0);return `<button class="infobox${f.total<=2?' boost-down':''}" title="${E('Food: '+f.items.map(i=>i.name+' × '+i.count).join(', ')+(hp?' · heals '+hp+' hitpoints in all':''))}">${icon(top.name,24)}<span>${f.total}</span></button>`;};
     const ammoBox=b=>{const a=b.equipment?.find(e=>e.slot===13&&e.count>0);return a?`<button class="infobox ammo" title="${E(a.name)} × ${E(a.count)}">${icon(a.name,24)}<span>${a.count>=1e5?Math.floor(a.count/1e3)+'K':E(a.count)}</span></button>`:'';};
     if(b){set((b.uptime?box(asset('rl-activity.png'),short(b.uptime),'Session: '+dur(b.uptime)):'')+(b.goalSkill&&!(b.goalNow>=b.goalLevel)?box(asset('skill-'+skillFile(b.goalSkill)+'.png'),b.eta||String(b.goalNow??''),b.goalSkill+' '+(b.goalNow??'?')+' → '+b.goalLevel+(b.eta?' in '+b.eta:'')):'')+(b.death?box(asset('skill-hitpoints.png'),'died','Died '+age(b.death.at)+' ago: '+b.death.text+' · click for the recap').replace('class="infobox"','class="infobox boost-down" data-death="'+E(b.name)+'"'):'')+foodBox(b)+ammoBox(b)+nearBox(b)
       // Item charges: teleport jewellery on its last charge, or used up (an amulet of glory with no charges has no number).
@@ -707,7 +728,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     loadItemSources();const list=itemSourcesData?.[id];
     if(!itemSourcesData||!Object.keys(itemSourcesData).length&&list===undefined)return '<div class="ge-sources"><span class="xp-muted">Loading sources…</span></div>';
     if(!list?.length)return '<div class="ge-sources"><span class="xp-muted">No source on record: the route does not use this item.</span></div>';
-    return '<div class="ge-sources">'+list.map(([k,label,tiles],j)=>'<div class="ge-source"><span class="ge-kind ge-'+E(k)+'">'+E(k)+'</span><span class="ge-label">'+E(label)+'</span>'+(tiles.length?'<button class="xp-reset" data-src-pin="'+j+'" title="'+tiles.length/3+' places">'+(sourcePin?.key===id+'|'+j?'Shown':'Show on map')+'</button>':'')+'</div>').join('')+'</div>';
+    return '<div class="ge-sources">'+list.map(([k,label,tiles],j)=>'<div class="ge-source"><span class="ge-kind ge-'+E(k)+'">'+E(k)+'</span><span class="ge-label">'+E(label)+geTele(tiles)+'</span>'+(tiles.length?'<button class="xp-reset" data-src-pin="'+j+'" title="'+tiles.length/3+' places">'+(sourcePin?.key===id+'|'+j?'Shown':'Show on map')+'</button>':'')+'</div>').join('')+'</div>';
   }
   // The head (counts and the price age) and the rows are written apart: a new age does not rebuild the rows.
   function geResults(){
@@ -887,8 +908,9 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
       if(hl.items&&Array.isArray(b?.ground))for(const it of b.ground){if(!Array.isArray(it)||it[2]!==floor||!sameSide(it[1]))continue;const [x,y]=mp(it[0],it[1]);if(!inView(x,y))continue;g.fillStyle='#000';g.fillRect(x-1,y,3,2);g.fillStyle='#ff0000';g.fillRect(x-1,y-1,2,2);hits.push([x,y,'Floor item'+(it[4]>1?' × '+it[4]:'')]);}
       if(hl.icons&&typeof mapIcons!=='undefined'&&mapIcons)for(const [qx,qz,l,k,label] of mapIcons){if(l!==floor||!sameSide(qz))continue;const [x,y]=mp(qx,qz);if(!inView(x,y))continue;hits.push([x,y,label]);
         // The map art already has the game's shop icons: a shop keeper is named under the pointer, with no mark of its own.
-        if(k==='s')continue;g.fillStyle='#000';g.beginPath();g.arc(x+0.5,y+0.5,3.5,0,7);g.fill();g.fillStyle=k==='t'?'#3f7fff':'#2bd32b';if(k==='a')g.fillRect(x-2,y-2,5,5);else{g.beginPath();g.arc(x+0.5,y+0.5,2.5,0,7);g.fill();}}}
+        if(k==='s')continue;g.fillStyle='#000';g.beginPath();g.arc(x+0.5,y+0.5,3.5,0,7);g.fill();g.fillStyle=k==='t'?'#3f7fff':k==='p'?'#00d0d0':'#2bd32b';if(k==='a')g.fillRect(x-2,y-2,5,5);else{g.beginPath();g.arc(x+0.5,y+0.5,2.5,0,7);g.fill();}}}
 
+    if(typeof hl!=='undefined'&&hl.idle&&typeof idleRows==='function'){const shownBots=new Set(markers.bots.map(o=>o.name));for(const r of idleRows()){if(!sameSide(r.z)||!shownBots.has(r.name))continue;const [x,y]=mp(r.x,r.z);g.strokeStyle='#ffff00';g.lineWidth=1;g.beginPath();g.arc(x+0.5,y+0.5,5,0,7);g.stroke();hits.push([x,y,safeName(r.name)+' idle '+Math.floor(r.ms/60000)+'m']);}}
     if(typeof hl!=='undefined'&&hl.fails&&typeof failSpots==='function')for(const f of failSpots())if(sameSide(f.z))dot(f.x,f.z,'#ff9900','#b36b00',(f.names.length>1?f.names.length+' failed':safeName(f.names[0])+' failed')+': '+f.reason,3);
     if(p){g.fillStyle='#fff';g.fillRect(OX-1,OY-2,3,3);}
     // Only the pixels of the map hole stay: the frame is a cut-out, and it does not hide the rest of the square.
@@ -902,7 +924,9 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // The pointer on the minimap names the tile under it, and the players whose dots it touches.
   miniCanvas?.addEventListener('mousemove',e=>{const t=miniAt(e),tip=hud.querySelector('.game-tip'),names=[...new Set((minimap.hits||[]).filter(h=>Math.abs(h[0]-t.x)<=3&&Math.abs(h[1]-t.y)<=3).map(h=>safeName(h[2])))];
     tip.textContent=(names.length?names.slice(0,4).join(', ')+(names.length>4?' +'+(names.length-4):'')+' · ':'')+t.tx+', '+t.tz;tip.hidden=false;const h=hud.getBoundingClientRect();tip.style.left=Math.max(0,e.clientX-h.left-tip.offsetWidth-10)+'px';tip.style.top=(e.clientY-h.top+12)+'px';});
-  miniCanvas?.addEventListener('contextmenu',e=>{const t=miniAt(e),h=(minimap.hits||[]).filter(h=>Math.abs(h[0]-t.x)<=3&&Math.abs(h[1]-t.y)<=3&&/^[A-Za-z0-9_ -]{1,12}$/.test(h[2]))[0];if(!h)return;e.preventDefault();lookup(h[2]);});
+  // Only a player dot looks up: the hits also hold floor items, markers and icons, whose labels can look like a name.
+  const playerNames=()=>new Set([...(S?.roster||[]).map(r=>String(r[0]).toLowerCase()),...(S?.bots||[]).map(b=>String(b.name).toLowerCase())]);
+  miniCanvas?.addEventListener('contextmenu',e=>{const t=miniAt(e),players=playerNames(),h=(minimap.hits||[]).filter(h=>Math.abs(h[0]-t.x)<=3&&Math.abs(h[1]-t.y)<=3&&/^[A-Za-z0-9_ -]{1,12}$/.test(h[2])&&players.has(String(h[2]).toLowerCase()))[0];if(!h)return;e.preventDefault();lookup(h[2]);});
   miniCanvas?.addEventListener('mouseleave',()=>{hud.querySelector('.game-tip').hidden=true;});
   // A narrow view has no room for the orbs beside the minimap: they go in a row under it, and the XP button goes to
   // the top right of the ring (client-shell.css, hud-narrow).
@@ -943,6 +967,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // Skills tab tooltip (OSRS): XP, next level at, remaining.
   hud.addEventListener('mouseover',e=>{const sk=e.target.closest('[data-skill]');const tip=hud.querySelector('.game-tip');if(!sk){tip.hidden=true;return;}const s=level(sk.dataset.skill),X=window.atlasXp;if(!s||!X){tip.hidden=true;return;}const lvl=Math.min(99,s.level),next=X.xpForLevel(Math.min(99,lvl+1));
     if(s.xp==null){tip.innerHTML=`<div>${E(sk.dataset.skill)} level <b>${s.level}</b></div><div>XP is not reported for this side.</div>`;}else tip.innerHTML=`<div>${E(sk.dataset.skill)} XP: <b>${nf(s.xp)}</b></div>`+(lvl<99?`<div>Next level at: <b>${nf(next)}</b></div><div>Remaining XP: <b>${nf(Math.max(0,next-s.xp))}</b></div>`:X.virtualLevel(s.xp)>99?`<div>Virtual level: <b>${X.virtualLevel(s.xp)}</b></div>`:'');
+    {const g=s.xp!=null?skillGuide(sk.dataset.skill,s.xp):null;if(g){if(g.best)tip.innerHTML+=`<div>To level: <b>${nf(g.best.count)}</b> × ${E(g.best.name)}</div>`;if(g.next.length)tip.innerHTML+=`<div>Unlocks: ${g.next.map(n=>E(n.name)+' ('+n.level+')').join(', ')}</div>`;}}
     const r=sk.getBoundingClientRect(),h=hud.getBoundingClientRect();tip.hidden=false;tip.style.left=Math.max(0,r.left-h.left-tip.offsetWidth-4)+'px';tip.style.top=(r.top-h.top)+'px';});
   hud.addEventListener('mouseout',e=>{if(e.target.closest('[data-skill]')&&!e.relatedTarget?.closest?.('[data-skill]'))hud.querySelector('.game-tip').hidden=true;});
   let welcomed=false;
@@ -1016,7 +1041,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   function xpGlobe(skill,xp){
     const X=window.atlasXp,box=hud.querySelector('.xp-globes');if(!X||!box)return;const lvl=X.levelForXp(xp),floor=X.xpForLevel(lvl),ceil=X.xpForLevel(Math.min(99,lvl+1)),p=lvl>=99?1:Math.min(1,(xp-floor)/Math.max(1,ceil-floor));
     let el=box.querySelector(`[data-globe="${skill}"]`);if(!el){el=document.createElement('div');el.className='xp-globe';el.dataset.globe=skill;el.innerHTML=`<img src="${asset('skill-'+skillFile(skill)+'.png')}" alt="">`;box.append(el);}
-    el.style.setProperty('--p',Math.round(p*100)+'%');const b=account(),rate=b&&b.goalSkill===skill&&b.xpPerHour>0?b.xpPerHour:null;el.title=`${skill}: ${Math.round(p*100)}% to level ${Math.min(99,lvl+1)} (${nf(Math.max(0,ceil-xp))} xp left)${rate?` · ${nf(Math.round(rate))} XP/hr`:''}`;
+    el.style.setProperty('--p',Math.round(p*100)+'%');const b=account(),rate=b&&b.goalSkill===skill&&b.xpPerHour>0?b.xpPerHour:null;el.title=`${skill}: ${Math.round(p*100)}% to level ${Math.min(99,lvl+1)} (${nf(Math.max(0,ceil-xp))} xp left)${rate?` · ${nf(Math.round(rate))} XP/hr`:''}${guideText(skillGuide(skill,xp))}`;
     clearTimeout(globeTimers.get(skill));globeTimers.set(skill,setTimeout(()=>{el.remove();globeTimers.delete(skill);},10000));
   }
   // The hosted page's stale bar already reports old data, and the 3D view keeps its own live world feed.
@@ -1777,7 +1802,10 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // Opponent information (RuneLite opponentinfo): the followed account's target in the 3D view, with its name, combat
   // level (npc-names.json, from the server's npc configs) and hitpoints; it stays 5 seconds after combat ends.
   // One shared table load; while it loads, only the newest update draws, into the one box.
-  let npcNames=null,npcNamesLoad=null,opponentHide=0,opponentLatest=null;
+  // An NPC opponent's route-item drops (client-assets/npc-drops.json), most likely first, under its hitpoints. The keys
+  // are lower case: npc-names.json says "Black Demon" where the drop table says "Black demon".
+  let npcNames=null,npcNamesLoad=null,opponentHide=0,opponentLatest=null,npcDrops=null;
+  fetch(asset('npc-drops.json')).then(r=>r.ok?r.json():null).then(j=>{if(j&&typeof j==='object')npcDrops=Object.fromEntries(Object.entries(j).map(([k,v])=>[k.toLowerCase(),v]));},()=>{});
   // The box belongs to the viewer that sent it: a viewer reload (a new follow) or the 2D map clears it at once.
   function opponentClear(){opponentLatest=null;clearTimeout(opponentHide);const el=hud.querySelector('.game-opponent');if(el)el.hidden=true;}
   window.atlasOpponentClear=opponentClear;$('#rsw')?.addEventListener('load',opponentClear);
@@ -1788,7 +1816,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     if(o.kind==='npc'&&!npcNames){npcNamesLoad??=fetch(asset('npc-names.json'),{signal:AbortSignal.timeout(5000)}).then(r=>r.ok?r.json():null).catch(()=>null).finally(()=>{npcNamesLoad=null;});npcNames=await npcNamesLoad;if(opponentLatest!==o)return;}
     const [cur,max]=o.hp,npc=o.kind==='npc'?npcNames?.[o.type]:null,name=o.kind==='player'?String(o.name).slice(0,12):npc?.[0]??'Unknown npc',lvl=npc?.[1];
     let el=hud.querySelector('.game-opponent');if(!el){el=document.createElement('div');el.className='game-opponent';el.setAttribute('aria-live','polite');hud.append(el);}
-    el.hidden=false;el.innerHTML='<b>'+E(name)+(lvl?' <small>(level-'+lvl+')</small>':'')+'</b><div class="opponent-hp"><i style="width:'+Math.max(0,Math.min(100,Math.round(cur/Math.max(1,max)*100)))+'%"></i><span>'+cur+' / '+max+'</span></div>';
+    el.hidden=false;el.innerHTML='<b>'+E(name)+(lvl?' <small>(level-'+lvl+')</small>':'')+'</b><div class="opponent-hp"><i style="width:'+Math.max(0,Math.min(100,Math.round(cur/Math.max(1,max)*100)))+'%"></i><span>'+cur+' / '+max+'</span></div>'+(()=>{const d=o.kind==='npc'?npcDrops?.[String(name).toLowerCase()]:null;return d?.length?'<div class="opponent-drops">'+d.slice(0,4).map(([n,c])=>E(n)+' <small>'+E(c)+'</small>').join(' · ')+'</div>':'';})();
   }
   window.addEventListener('message',e=>{if(e.origin!==location.origin||e.source!==$('#rsw').contentWindow||!e.data||typeof e.data!=='object')return;if(e.data?.viewerTiming&&!wall)focusLanded();wallMessage(e.data);wallFrameKey(e.data.atlasWallKey);if(e.data.viewerCapture)shotReply(e.data.viewerCapture);if(e.data.atlasDepleted&&Array.isArray(e.data.atlasDepleted.list)){depletedNow={tick:Number(e.data.atlasDepleted.tick)||0,list:e.data.atlasDepleted.list.slice(0,500),at:Date.now()};if(selectedPlugin==='world'&&body.dataset.plugin==='world')refreshWorld();}if(e.data?.viewerState&&S){wallSync();focusPaint();}if(e.data?.atlasStep===1||e.data?.atlasStep===-1)focusStep(e.data.atlasStep);if(e.data?.atlasRoster)window.atlasRosterIn(e.data.atlasRoster);if(e.data&&'atlasOpponent' in e.data){const o=e.data.atlasOpponent;if(o?.kind==='npc'&&Number.isInteger(o.type)){const who=account()?.name??null;if(who!==targetsFor){targetsFor=who;recentTargets=[];}if(!recentTargets.includes(o.type)){recentTargets=[o.type,...recentTargets].slice(0,3);overlaySync();}}opponentBox(o&&Array.isArray(o.hp)&&o.hp.length===2&&o.hp.every(Number.isFinite)&&(o.kind==='npc'?Number.isInteger(o.type):typeof o.name==='string')?o:null);}const c3=e.data?.atlasCamera3d;if(c3&&[c3.x,c3.z,c3.yaw].every(Number.isFinite)){window.atlasCam3d={x:c3.x,z:c3.z,yaw:c3.yaw,at:Date.now()};minimap();}const m=e.data?.atlasChat;if(typeof e.data?.atlasWorldMap==='boolean')hud.classList.toggle('worldmap-open',e.data.atlasWorldMap);if(!m||typeof m.text!=='string'||typeof m.name!=='string'||typeof m.key!=='string'||seenChat.has(m.key))return;seenChat.add(m.key);if(seenChat.size>500)seenChat.delete(seenChat.values().next().value);chat.push({kind:'Public',name:m.name.slice(0,32),text:m.text.slice(0,500),at:Date.now()});if(chat.length>200)chat.shift();renderChat();});
   const gameKeys=e=>{
