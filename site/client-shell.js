@@ -206,8 +206,10 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     let rows='';
     if(k&&b){
       const have=n=>(b.inventory||[]).filter(i=>i&&String(i.name).toLowerCase()===n.toLowerCase()).reduce((t,i)=>t+(i.count||1),0);
+      // The bank's count of each kit item, for a restock (b.bank is the last observed bank).
+      const banked=n=>Array.isArray(b.bank)?b.bank.filter(i=>i&&String(i.name).toLowerCase()===n.toLowerCase()).reduce((t,i)=>t+(i.count||1),0):null;
       const differ=Object.entries(k.worn).filter(([id,w])=>!sameItem(b.equipment?.find(e=>e.slot===Number(id)),w)).length;
-      rows='<p class="game-muted">'+(b.equipment?differ?differ+' worn slot'+(differ===1?'':'s')+' differ from the kit':'Every worn slot matches the kit':'Equipment is not reported.')+'</p>'+k.carried.map(([n,c])=>{const h=have(n);return `<div class="setup-row ${h>=c?'setup-have':'setup-short'}" title="${E(n)}: ${nf(h)} held, ${nf(c)} in the kit">${icon(n,24)}<span>${E(n)}</span><span>${nf(h)} / ${nf(c)}</span></div>`;}).join('');
+      rows='<p class="game-muted">'+(b.equipment?differ?differ+' worn slot'+(differ===1?'':'s')+' differ from the kit':'Every worn slot matches the kit':'Equipment is not reported.')+'</p>'+k.carried.map(([n,c])=>{const h=have(n),bk=banked(n);return `<div class="setup-row ${h>=c?'setup-have':'setup-short'}" title="${E(n)}: ${nf(h)} held, ${nf(c)} in the kit${bk==null?'':', '+nf(bk)+' in the bank'}">${icon(n,24)}<span>${E(n)}</span><span>${nf(h)} / ${nf(c)}${bk==null?'':` <small class="setup-bank${h+bk<c?' setup-bank-short':''}">bank ${nf(bk)}</small>`}</span></div>`;}).join('');
     }
     return `<div class="setup"><label>Setup <select data-setup-kit aria-label="Inventory setup">${opts}</select></label>${rows}</div>`;
   }
@@ -273,7 +275,9 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     if(typeof resources==='undefined'||!resources||!/^(woodcutting|mining)$/i.test(String(skill||'')))return null;
     const kinds=resources.kinds||{},p=b?.live||b?.pos||null;
     for(const a of (skillActions?.[String(skill).toLowerCase()]||[]).filter(a=>a[1]<=lvl).sort((x,y)=>y[2]-x[2])){
-      const want=resourceOf(a[0]);if(!want)continue;
+      // The action's name, else its first output item, names the resource; a name that already ends in rock or tree is one
+      // ("Limestone rock": skill-actions.json names some actions after their table row).
+      const want=resourceOf(a[0])||resourceOf(a[4]?.[0]||'')||(/ (rock|tree)$/i.test(a[0])?a[0]:null);if(!want)continue;
       const ids=new Set(Object.keys(kinds).filter(id=>String(kinds[id]?.name||'').toLowerCase()===want.toLowerCase()).map(Number));
       const tiles=resources.tiles.filter(t=>ids.has(t[3])).map(t=>({x:t[0],z:t[1],l:t[2]}));if(!tiles.length)continue;
       const near=p?tiles.filter(t=>t.l===(p.level||0)&&(t.z>6400)===(p.z>6400)).map(t=>({...t,d:Math.max(Math.abs(t.x-p.x),Math.abs(t.z-p.z))})).sort((x,y)=>x.d-y.d)[0]||null:null;
@@ -518,6 +522,10 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   function nearestTeleport(tiles){let best=null;for(const t of tiles||[])for(const [x,z,l,k,label] of mapIcons||[]){if(k!=='t'||l!==(t.l||0)||(z>6400)!==(t.z>6400))continue;const d=Math.max(Math.abs(x-t.x),Math.abs(z-t.z));if(d<=80&&(!best||d<best.d))best={label,d};}return best;}
   const teleText=tiles=>{const t=nearestTeleport(tiles);return t?'Closest teleport: '+t.label+', '+t.d+' tiles':'';};
   const geTele=flat=>{const t=flat?.length?nearestTeleport(flatTiles(flat)):null;return t?' <small class="ge-tele" title="'+E('Closest teleport: '+t.label+', '+t.d+' tiles')+'">· '+E(t.label)+', '+t.d+' tiles</small>':'';};
+  // Map icons by requirement (RuneLite's World Map shortcut colours): with the watched account's levels, a shortcut it
+  // cannot use is red and a teleport spell it cannot cast is dark blue; true, false, or null with no level known. The game
+  // checks the current level (stat(), boosts count: knowledge/teleports.json), so currentLevel, else the base level.
+  const iconCan=(b,req)=>{if(!req||!b?.skills)return null;const s=b.skills.find(x=>String(x.name).toLowerCase()===String(req[0]).toLowerCase()),lv=Number.isFinite(s?.currentLevel)?s.currentLevel:s?.level;return Number.isFinite(lv)?lv>=req[1]:null;};
   const flatTiles=a=>{const t=[];for(let i=0;i+2<(a?.length||0);i+=3)t.push({x:a[i],z:a[i+1],l:a[i+2]});return t;};
   // What the pink layer shows: the NPC finder's pick, else the pinned item source.
   function pinned(){const r=typeof finderRow==='function'?finderRow():null;if(r)return {label:r[0]+(r[2]?' ('+r[2]+')':''),tip:r[0]+' ('+combatText(r)+')',tiles:spawnTiles(r)};return sourcePin;}
@@ -922,7 +930,9 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     if(typeof hl!=='undefined'&&hl.busy){const floor=bp?.level||0,cell=new Map();for(const r of markers.roster){if((r[3]||0)!==floor||(r[2]>6400)!==(cz>6400))continue;const k=Math.floor(r[1]/8)+','+Math.floor(r[2]/8);cell.set(k,(cell.get(k)||0)+1);}
       const corner=(qx,qz)=>{const dx=(qx-cx-0.5)*PX,dy=(cz-qz+0.5)*PX;return [OX+dx*cos-dy*sin,OY+dx*sin+dy*cos];};
       for(const [k,n] of cell){if(n<5)continue;const [gx,gz]=k.split(',').map(Number),x0=gx*8,z0=gz*8,pts=[corner(x0,z0),corner(x0+8,z0),corner(x0+8,z0+8),corner(x0,z0+8)];g.fillStyle='rgba(255,40,0,'+Math.min(0.5,0.12+n*0.02)+')';g.beginPath();pts.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();g.fill();const c=corner(x0+4,z0+4);hits.push([Math.round(c[0]),Math.round(c[1]),n+' players here']);}}
-    const fleetNames=new Set(markers.bots.map(o=>o.name.toLowerCase()));for(const [n,qx,qz] of markers.roster){const low=String(n).toLowerCase();if(fleetNames.has(low))continue;if(D.rival.has(low))dot(qx,qz,'#19b3ff','#0f84c4',n,2);else if(D.farm.has(low))dot(qx,qz,'#9a9a9a','#757575',n,2);else dot(qx,qz,'#fff','#d2d2d2',n,2);}
+    const fleetNames=new Set(markers.bots.map(o=>o.name.toLowerCase()));// In the Wilderness, a player who can attack the watched account now (PvP Tools) is a red dot.
+    const attackers=new Set(((b&&b.inWorld&&b.pos&&wildLevel(b.pos)?pvpState(b)?.threats:null)||[]).map(t=>String(t.name).toLowerCase()));
+    for(const [n,qx,qz] of markers.roster){const low=String(n).toLowerCase();if(fleetNames.has(low))continue;if(attackers.has(low))dot(qx,qz,'#ff2020','#b00000',n,2);else if(D.rival.has(low))dot(qx,qz,'#19b3ff','#0f84c4',n,2);else if(D.farm.has(low))dot(qx,qz,'#9a9a9a','#757575',n,2);else dot(qx,qz,'#fff','#d2d2d2',n,2);}
     for(const o of markers.bots){const q=o.live||o.pos;if(!q||(q.z>6400)!==(cz>6400)||o===b)continue;const[cl]=st(o);if(cl==='on')dot(q.x,q.z,'#2bff2b','#1fc21f',o.name,3);else dot(q.x,q.z,'#3d8a33','#2c6625',o.name,3);}
     // Death recap: the watched account's death tile, while its recap is open.
     const dt=typeof recap!=='undefined'&&recap.state==='ok'&&b&&recap.name===b.name?recap.data?.pos:null;if(dt&&(dt.z>6400)===(cz>6400))dot(dt.x,dt.z,'#ff2020','#a00000','Death tile',3);
@@ -938,9 +948,9 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     // World Map icons and the watched account's floor items (the game's red minimap dots), on the shown floor, zoomed in.
     if(p&&typeof hl!=='undefined'){const floor=bp?.level||0,inView=(x,y)=>x>=-4&&y>=-4&&x<=W+4&&y<=H+4;
       if(hl.items&&Array.isArray(b?.ground))for(const it of b.ground){if(!Array.isArray(it)||it[2]!==floor||!sameSide(it[1]))continue;const [x,y]=mp(it[0],it[1]);if(!inView(x,y))continue;g.fillStyle='#000';g.fillRect(x-1,y,3,2);g.fillStyle='#ff0000';g.fillRect(x-1,y-1,2,2);hits.push([x,y,'Floor item'+(it[4]>1?' × '+it[4]:'')]);}
-      if(hl.icons&&typeof mapIcons!=='undefined'&&mapIcons)for(const [qx,qz,l,k,label] of mapIcons){if(l!==floor||!sameSide(qz))continue;const [x,y]=mp(qx,qz);if(!inView(x,y))continue;hits.push([x,y,label]);
+      if(hl.icons&&typeof mapIcons!=='undefined'&&mapIcons)for(const [qx,qz,l,k,label,req] of mapIcons){if(l!==floor||!sameSide(qz))continue;const [x,y]=mp(qx,qz);if(!inView(x,y))continue;const can=iconCan(b,req);hits.push([x,y,label+(can===false?' · needs '+req[1]+' '+req[0]:'')]);
         // The map art already has the game's shop icons: a shop keeper is named under the pointer, with no mark of its own.
-        if(k==='s')continue;g.fillStyle='#000';g.beginPath();g.arc(x+0.5,y+0.5,3.5,0,7);g.fill();g.fillStyle=k==='t'?'#3f7fff':k==='p'?'#00d0d0':'#2bd32b';if(k==='a')g.fillRect(x-2,y-2,5,5);else{g.beginPath();g.arc(x+0.5,y+0.5,2.5,0,7);g.fill();}}}
+        if(k==='s')continue;g.fillStyle='#000';g.beginPath();g.arc(x+0.5,y+0.5,3.5,0,7);g.fill();g.fillStyle=k==='t'?(can===false?'#24407a':'#3f7fff'):k==='p'?'#00d0d0':can===false?'#e02020':'#2bd32b';if(k==='a')g.fillRect(x-2,y-2,5,5);else{g.beginPath();g.arc(x+0.5,y+0.5,2.5,0,7);g.fill();}}}
 
     if(typeof hl!=='undefined'&&hl.idle&&typeof idleRows==='function'){const shownBots=new Set(markers.bots.map(o=>o.name));for(const r of idleRows()){if(!sameSide(r.z)||!shownBots.has(r.name))continue;const [x,y]=mp(r.x,r.z);g.strokeStyle='#ffff00';g.lineWidth=1;g.beginPath();g.arc(x+0.5,y+0.5,5,0,7);g.stroke();hits.push([x,y,safeName(r.name)+' idle '+Math.floor(r.ms/60000)+'m']);}}
     if(typeof hl!=='undefined'&&hl.fails&&typeof failSpots==='function')for(const f of failSpots())if(sameSide(f.z))dot(f.x,f.z,'#ff9900','#b36b00',(f.names.length>1?f.names.length+' failed':safeName(f.names[0])+' failed')+': '+f.reason,3);
@@ -954,7 +964,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   const MINI_ZOOMS=[2,3,4,6,8];try{const z=Number(localStorage.getItem('atlasMiniZoom'));if(MINI_ZOOMS.includes(z))minimap.zoom=z;}catch{/* no storage: 4 px a tile */}
   miniCanvas?.addEventListener('wheel',e=>{e.preventDefault();const now=minimap.zoom||4,next=MINI_ZOOMS[Math.max(0,Math.min(MINI_ZOOMS.length-1,MINI_ZOOMS.indexOf(now)+(e.deltaY<0?1:-1)))];if(next===now)return;minimap.zoom=next;try{localStorage.setItem('atlasMiniZoom',String(next));}catch{/* the zoom holds for this visit */}minimap();},{passive:false});
   // The pointer on the minimap names the tile under it, and the players whose dots it touches.
-  miniCanvas?.addEventListener('mousemove',e=>{const t=miniAt(e),tip=hud.querySelector('.game-tip'),names=[...new Set((minimap.hits||[]).filter(h=>Math.abs(h[0]-t.x)<=3&&Math.abs(h[1]-t.y)<=3).map(h=>safeName(h[2])))];
+  miniCanvas?.addEventListener('mousemove',e=>{const t=miniAt(e),tip=hud.querySelector('.game-tip'),cb=new Map((S?.roster||[]).map(r=>[String(r[0]).toLowerCase(),r[4]])),names=[...new Set((minimap.hits||[]).filter(h=>Math.abs(h[0]-t.x)<=3&&Math.abs(h[1]-t.y)<=3).map(h=>{const c=cb.get(String(h[2]).toLowerCase());return safeName(h[2])+(Number.isFinite(c)?' ('+c+')':'');}))];
     tip.textContent=(names.length?names.slice(0,4).join(', ')+(names.length>4?' +'+(names.length-4):'')+' · ':'')+t.tx+', '+t.tz;tip.hidden=false;const h=hud.getBoundingClientRect();tip.style.left=Math.max(0,e.clientX-h.left-tip.offsetWidth-10)+'px';tip.style.top=(e.clientY-h.top+12)+'px';});
   // Only a player dot looks up: the hits also hold floor items, markers and icons, whose labels can look like a name.
   const playerNames=()=>new Set([...(S?.roster||[]).map(r=>String(r[0]).toLowerCase()),...(S?.bots||[]).map(b=>String(b.name).toLowerCase())]);
