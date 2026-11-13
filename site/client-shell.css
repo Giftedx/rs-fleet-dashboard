@@ -251,3 +251,5 @@ body{background:#171717}.app{display:block!important;height:100dvh!important;pad
 .ge-up,.ge-down{margin-left:4px;font:10px Arial}.ge-up{color:#2bd32b}.ge-down{color:#ff4b4b}
 /* Item identification: a short label over the item, as RuneLite draws it. */
 .inventory-cell{position:relative}.item-id{position:absolute;left:1px;bottom:1px;font:bold 10px Arial;color:#fff;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000;pointer-events:none;line-height:1}
+
+.ge-sort{display:flex;gap:4px;margin:4px 0}.ge-sort .xp-reset.on{color:#ff981f;border-color:#ff981f}
