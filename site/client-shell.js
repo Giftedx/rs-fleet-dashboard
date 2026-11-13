@@ -95,12 +95,13 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // Equipment Stats (the game's Equipment Stats screen): the sum of the worn items' bonuses (client-assets/item-bonuses.json,
   // from the server's .obj params) and the max hits by the server's formula (combat.rs2, player_combat_stat.rs2):
   // effective level = current level + 8 + the attack style bonus (0 to 3); max hit = floor((effective × (bonus + 64) + 320) / 640).
-  // The attack style is not reported, so a max hit is the range from no style bonus to the +3 style.
+  // The attack style is not reported, so a max hit is the range from no style bonus to the +3 style. Unobserved
+  // equipment (equipmentObserved false: the hosted publisher has no worn items) shows no panel, not an empty loadout.
   let itemBonusData=null,spellbookData=null;
   fetch(asset('item-bonuses.json')).then(r=>r.ok?r.json():null).then(j=>{if(j&&typeof j==='object')itemBonusData=j;},()=>{});
   fetch(asset('spellbook.json')).then(r=>r.ok?r.json():null).then(j=>{if(j&&Array.isArray(j.spells))spellbookData=j;},()=>{});
   const curLevel=(b,n)=>{const s=(b?.skills||[]).find(x=>x.name===n);return Number.isFinite(s?.currentLevel)?s.currentLevel:s?.level;};
-  function wornBonuses(b){if(!itemBonusData||!Array.isArray(b?.equipment))return null;const t=new Array(13).fill(0);for(const it of b.equipment){const v=itemBonusData[it?.name];if(Array.isArray(v))v.forEach((x,i)=>{t[i]+=x;});}return t;}
+  function wornBonuses(b){if(!itemBonusData||!Array.isArray(b?.equipment)||b.equipmentObserved===false)return null;const t=new Array(13).fill(0);for(const it of b.equipment){const v=itemBonusData[it?.name];if(Array.isArray(v))v.forEach((x,i)=>{t[i]+=x;});}return t;}
   // prayer is the server's percent (100 none, 115 for +15%): floor(level × prayer / 100) before the +8. The active prayer
   // is not reported, so the range shown is without one, and the melee top with +15% follows it.
   const maxHit=(level,bonus,style,prayer=100)=>Math.floor(((Math.floor(level*Math.max(100,prayer)/100)+8+style)*(bonus+64)+320)/640);
