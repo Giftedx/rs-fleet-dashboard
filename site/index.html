@@ -513,4 +513,4 @@ function receive(j){if(Array.isArray(j?.bots))j.bots=oneRowPerName(j.bots);SNAPS
 if(STATIC)setInterval(()=>{if(SNAPSHOT&&LIVE_ROSTER&&!window.atlasLiveRoster()){LIVE_ROSTER=null;S=SNAPSHOT;render();}},5000);
 if(STATIC)fetch('/api/state').then(r=>r.json()).then(receive).catch(()=>{connected=false;connectionState()});else{let version=null;const es=new EventSource('/events');es.onmessage=e=>{const j=JSON.parse(e.data);if(version&&j.pageVersion!==version){location.reload();return}version=j.pageVersion;receive(j)};es.onerror=()=>{connected=false;connectionState()};setInterval(connectionState,2000)}
 
-</script><script src="map-shell.js?v=b0710cd63c"></script><script src="xp-tracker.js?v=77b21d5120"></script><script src="client-shell.js?v=eb86835ded"></script><script src="operations.js?v=e59d010e13"></script></body></html>
+</script><script src="map-shell.js?v=b0710cd63c"></script><script src="xp-tracker.js?v=77b21d5120"></script><script src="client-shell.js?v=c02df51ed6"></script><script src="operations.js?v=e59d010e13"></script></body></html>
