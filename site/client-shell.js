@@ -212,7 +212,8 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     $('#rsw')?.contentWindow?.postMessage({capture:{id}},location.origin);
   }
   function shotReply(d){const p=pendingShots.get(d?.id);if(!p||typeof d.url!=='string'||!d.url.startsWith('data:image/'))return;pendingShots.delete(d.id);saveShot({id:d.id,...p,url:d.url});if(selectedPlugin==='activity')window.atlasPlugins?.activity?.render(body);}
-  const shotFor=(b,kind,text)=>{if(b&&shotCfg[kind]&&account()?.name===b.name)takeShot(b.name,kind,text);};
+  // Only the owner takes pictures: a signed-out viewer has no Activity plugin to see or turn them off.
+  const shotFor=(b,kind,text)=>{if(b&&shotCfg[kind]&&window.atlasOperator?.()&&account()?.name===b.name)takeShot(b.name,kind,text);};
   // Loot shots: a loot item of the watched account that gained at least the chosen value since the last refresh.
   function lootShots(){
     const b=account();if(!b?.flow||!shotCfg.loot)return;
