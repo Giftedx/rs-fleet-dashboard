@@ -245,3 +245,5 @@ body{background:#171717}.app{display:block!important;height:100dvh!important;pad
 /* Equipment Stats and teleport casts. */
 .equip-stats{margin:6px 4px;font:11px Arial;color:#ddd;display:grid;gap:1px}.equip-stats>div{display:grid;grid-template-columns:44px repeat(5,1fr);align-items:center}.equip-stats>.es-title{display:block;color:#ff981f;font-weight:bold}.equip-stats span{color:#ff981f}.equip-stats i{font-style:normal;text-align:center}.equip-stats .es-head i{color:#a0a0a0;font-size:10px}.equip-stats .es-other{grid-template-columns:44px repeat(3,1fr)}.equip-stats .es-hit{grid-template-columns:44px 1fr}.equip-stats .es-hit b{color:#ffff00;font-weight:normal}
 .tele-casts{margin:2px 4px;font:11px Arial;color:#9fc3ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tele-casts .tele-low{color:#5a6a80}
+/* Quest rewards and the restock line. */
+.quest-reward{text-align:center;color:#ff981f;font:12px Arial;margin:4px 6px}.setup-restock{margin:4px;font:11px Arial;color:#ff6b6b}
