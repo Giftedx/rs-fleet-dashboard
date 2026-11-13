@@ -156,14 +156,63 @@
     }
     return ext;
   });
-  let botGround = [], groundVersion = 0;
-  const groundRow = (r) => Array.isArray(r) && r.length === 5 && r.every(Number.isSafeInteger) && r[0] >= 0 && r[0] < 16384 && r[1] >= 0 && r[1] < 16384 && r[2] >= 0 && r[2] < 4 && r[3] >= 0 && r[3] < 65536 && r[4] >= 1 && r[4] < 2147483648, Socket = host.WebSocket;
+  let botGround = [], groundVersion = 0, respawnWatch = new Set, mainFeed = null, depletedArea = null;
+  const depleted = new Map;
+  let depletedSent = !1;
+  const publishDepleted = (tick) => {
+    if (privacyReady && renderReady && !failed && host.parent !== host) {
+      host.parent.postMessage({ atlasDepleted: { tick, list: [...depleted.values()] } }, host.location.origin);
+      depletedSent = depleted.size > 0;
+    }
+  }, clearDepleted = () => {
+    const had = depleted.size > 0 || depletedSent;
+    depleted.clear();
+    depletedArea = null;
+    if (had)
+      publishDepleted(0);
+  }, trackDepleted = (m) => {
+    if (!respawnWatch.size || !Array.isArray(m.w) && !m.reset)
+      return;
+    let changed = !1;
+    if (m.reset && depleted.size) {
+      depleted.clear();
+      changed = !0;
+    }
+    for (const r of Array.isArray(m.w) ? m.w : []) {
+      if (r?.e === "za" && [r.x, r.z, r.w, r.h].every(Number.isFinite)) {
+        const fresh = !!r.r, old = depletedArea;
+        depletedArea = { x: r.x, z: r.z, w: r.w, h: r.h };
+        for (const [k, v] of [...depleted])
+          if (fresh || !(v[0] >= r.x && v[0] < r.x + r.w && v[1] >= r.z && v[1] < r.z + r.h) || !old) {
+            depleted.delete(k);
+            changed = !0;
+          }
+        continue;
+      }
+      if (r?.e !== "la" && r?.e !== "ld" || ![r.x, r.z, r.l].every(Number.isSafeInteger))
+        continue;
+      const key = r.x + "," + r.z + "," + r.l;
+      if (r.e === "la" && respawnWatch.has(r.id)) {
+        if (!depleted.has(key)) {
+          depleted.set(key, [r.x, r.z, r.l, r.id, m.reset || Array.isArray(m.w) && m.w[0]?.e === "za" ? null : m.k]);
+          changed = !0;
+        }
+      } else if (depleted.delete(key))
+        changed = !0;
+    }
+    if (changed)
+      publishDepleted(m.k);
+  }, groundRow = (r) => Array.isArray(r) && r.length === 5 && r.every(Number.isSafeInteger) && r[0] >= 0 && r[0] < 16384 && r[1] >= 0 && r[1] < 16384 && r[2] >= 0 && r[2] < 4 && r[3] >= 0 && r[3] < 65536 && r[4] >= 1 && r[4] < 2147483648, Socket = host.WebSocket;
   if (Socket)
     host.WebSocket = class extends Socket {
       constructor(address, protocols) {
         super(address, protocols);
         try {
           if (new host.URL(String(address), host.location.href).pathname === "/worldfeed") {
+            if (!mainFeed) {
+              mainFeed = this;
+              clearDepleted();
+            }
             this.addEventListener("open", () => {
               feedConnected = !0;
               emit();
@@ -171,6 +220,10 @@
             this.addEventListener("close", () => {
               feedConnected = !1;
               emit();
+              if (mainFeed === this) {
+                mainFeed = null;
+                clearDepleted();
+              }
             });
             this.addEventListener("error", () => {
               feedConnected = !1;
@@ -231,7 +284,19 @@
               return data === event.data ? event : new host.MessageEvent("message", { data, origin: event.origin });
             };
             let area = null, seenVersion = -1;
-            const piles = new Map, inArea = (a, x, z) => !!a && x >= a.x && x < a.x + a.w && z >= a.z && z < a.z + a.h, addGround = (event) => {
+            const feedPiles = new Map, viewPiles = new Map, inArea = (a, x, z) => !!a && x >= a.x && x < a.x + a.w && z >= a.z && z < a.z + a.h, apply = (map, g, r) => {
+              const list = map.get(g) ?? [];
+              if (r.e === "oa") {
+                if (r.id >= 0 && r.n >= 1)
+                  list.push(r.n);
+              } else if (r.e === "od")
+                list.shift();
+              else if (r.n >= 1 && list.length) {
+                const i = list.indexOf(r.n0);
+                list[i >= 0 ? i : 0] = r.n;
+              }
+              list.length ? map.set(g, list) : map.delete(g);
+            }, addGround = (event) => {
               if (typeof event?.data !== "string" || event.data.length > 2000000 || !event.data.includes('"tick"'))
                 return event;
               if (seenVersion === groundVersion && !/"(?:za|oa|od|oc|reset)"/.test(event.data))
@@ -245,45 +310,28 @@
               if (m?.t !== "tick")
                 return event;
               const w = Array.isArray(m.w) ? m.w : [];
-              if (m.reset)
-                piles.clear();
+              if (m.reset) {
+                feedPiles.clear();
+                viewPiles.clear();
+              }
               for (const r of w)
                 if (r?.e === "za" && [r.x, r.z, r.w, r.h].every(Number.isFinite)) {
                   const next = { x: r.x, z: r.z, w: r.w, h: r.h };
-                  if (r.r)
-                    piles.clear();
-                  else
-                    for (const g of [...piles.keys()]) {
-                      const [x, z] = g.split(",").map(Number);
-                      if (!inArea(area, x, z) || !inArea(next, x, z))
-                        piles.delete(g);
-                    }
+                  if (r.r) {
+                    feedPiles.clear();
+                    viewPiles.clear();
+                  } else
+                    for (const map of [feedPiles, viewPiles])
+                      for (const g of [...map.keys()]) {
+                        const [x, z] = g.split(",").map(Number);
+                        if (!inArea(area, x, z) || !inArea(next, x, z))
+                          map.delete(g);
+                      }
                   area = next;
                 } else if ((r?.e === "oa" || r?.e === "od" || r?.e === "oc") && [r.x, r.z, r.l, r.id].every(Number.isSafeInteger)) {
-                  const g = `${r.x},${r.z},${r.l},${r.id}`, list = piles.get(g) ?? [];
-                  if (r.e === "oa") {
-                    if (r.id >= 0 && r.n >= 1)
-                      list.push({ f: !0, n: r.n });
-                  } else if (r.e === "od") {
-                    const p = list.shift();
-                    if (p && !p.f) {
-                      const j = list.findIndex((q) => q.f);
-                      if (j >= 0)
-                        list[j].f = !1;
-                    }
-                  } else if (r.n >= 1) {
-                    const i = list.findIndex((p) => p.n === r.n0), p = list[i >= 0 ? i : 0];
-                    if (p && !p.f) {
-                      const j = list.findIndex((q) => q.f && q.n === r.n0);
-                      if (j >= 0) {
-                        list[j].f = !1;
-                        p.f = !0;
-                      }
-                    }
-                    if (p)
-                      p.n = r.n;
-                  }
-                  list.length ? piles.set(g, list) : piles.delete(g);
+                  const g = `${r.x},${r.z},${r.l},${r.id}`;
+                  apply(feedPiles, g, r);
+                  apply(viewPiles, g, r);
                 }
               seenVersion = groundVersion;
               const want = new Map;
@@ -296,22 +344,22 @@
                   want.set(g, list);
                 }
               const add = [];
-              for (const g of new Set([...piles.keys(), ...want.keys()])) {
-                const list = piles.get(g) ?? [], feed = list.filter((p) => p.f).map((p) => p.n), ours = [...want.get(g) ?? []], now = list.filter((p) => !p.f).map((p) => p.n);
+              for (const g of new Set([...viewPiles.keys(), ...want.keys()])) {
+                const feed = feedPiles.get(g) ?? [], view = viewPiles.get(g) ?? [], ours = [...want.get(g) ?? []];
                 for (const n of feed) {
                   const i = ours.indexOf(n);
                   if (i >= 0)
                     ours.splice(i, 1);
                 }
-                if (now.length === ours.length && now.every((n, i) => n === ours[i]))
+                const next = [...feed, ...ours];
+                if (view.length === next.length && view.every((n, i) => n === next[i]))
                   continue;
                 const [x, z, l, id] = g.split(",").map(Number);
-                for (let i = 0;i < list.length; i++)
+                for (let i = 0;i < view.length; i++)
                   add.push({ e: "od", x, z, l, id });
-                const next = [...feed.map((n) => ({ f: !0, n })), ...ours.map((n) => ({ f: !1, n }))];
-                for (const p of next)
-                  add.push({ e: "oa", x, z, l, id, n: p.n });
-                next.length ? piles.set(g, next) : piles.delete(g);
+                for (const n of next)
+                  add.push({ e: "oa", x, z, l, id, n });
+                next.length ? viewPiles.set(g, next) : viewPiles.delete(g);
               }
               if (!add.length)
                 return event;
@@ -362,6 +410,8 @@
                     heldRosterAt = Date.now();
                   }
               }
+              if (message.t === "tick" && mainFeed === this)
+                trackDepleted(message);
               if (message.t === "tick") {
                 if (message.reset) {
                   faces.clear();
@@ -497,6 +547,16 @@
       if (Array.isArray(rows) && rows.length <= 1000 && rows.every(groundRow)) {
         botGround = rows.map((r) => r.slice());
         groundVersion++;
+      }
+    }
+    if ("respawnWatch" in event.data) {
+      const ids = event.data.respawnWatch;
+      if (Array.isArray(ids) && ids.length <= 64 && ids.every((n) => Number.isSafeInteger(n) && n >= 0 && n < 65536)) {
+        const next = new Set(ids);
+        if (next.size !== respawnWatch.size || [...next].some((n) => !respawnWatch.has(n))) {
+          respawnWatch = next;
+          clearDepleted();
+        }
       }
     }
     if (event.data.atlasCompass === !0)

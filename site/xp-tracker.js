@@ -59,5 +59,19 @@
     }
     // Virtual levels (RuneLite's virtual levels): the level this server's XP formula gives past 99. RuneLite stops at 126. This server's curve reaches 126 at 6.5M XP, so the count goes on to the level of the 200M XP cap (175).
     const virtualLevel = xp => { let acc = 0, level = 1; while (level < 175) { acc += Math.floor(level + Math.pow(2, level / 10) * 300); if (xp < Math.floor(acc / 4)) break; level++; } return level; };
-    global.atlasXp = { TABLE, xpForLevel, levelForXp, virtualLevel, baseline, rows, goalBar, total, combat };
+    // Tick efficiency: what each of the last ticks did, from the status `timeline` (one letter a tick, the newest last):
+    // x XP, v inventory change, m move, a anim, d dialog, s stun, i idle. Work is XP or an inventory change. Waste is the
+    // biggest share that is not work. `idle` is the share of idle ticks, in percent.
+    const TICK_KINDS = { x: 'xp', v: 'inventory', m: 'move', a: 'anim', d: 'dialog', s: 'stun', i: 'idle' };
+    function efficiency(timeline) {
+        const ticks = String(timeline || '').split('').filter(k => k in TICK_KINDS);
+        if (!ticks.length) return null;
+        const counts = Object.fromEntries(Object.values(TICK_KINDS).map(k => [k, 0]));
+        for (const k of ticks) counts[TICK_KINDS[k]]++;
+        const pct = n => n * 100 / ticks.length;
+        const shares = Object.fromEntries(Object.entries(counts).map(([k, n]) => [k, pct(n)]));
+        const waste = Object.entries(counts).filter(([k]) => k !== 'xp' && k !== 'inventory').sort((a, b) => b[1] - a[1])[0];
+        return { ticks: ticks.length, counts, shares, idle: shares.idle, work: shares.xp + shares.inventory, waste: waste[1] ? { kind: waste[0], share: pct(waste[1]) } : null };
+    }
+    global.atlasXp = { TABLE, xpForLevel, levelForXp, virtualLevel, baseline, rows, goalBar, total, combat, efficiency, TICK_KINDS };
 })(globalThis);
