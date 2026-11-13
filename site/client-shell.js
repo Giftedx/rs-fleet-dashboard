@@ -92,7 +92,20 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // Inventory Tags (RuneLite's Inventory Tags): an outline in the colour of the item's group: food green, potions blue,
   // teleports purple, runes orange (item-stats.json for food and potions).
   const invTag=item=>{if(!item||typeof hl==='undefined'||!hl.invTags)return '';const n=item.name||'',st=itemStats[n]||'';return /\bheals\b/i.test(st)?' tag-food':/\(\d\)$/.test(n)&&st?' tag-potion':/teleport|^Amulet of glory|^Ring of dueling|^Games necklace|^Skills necklace|^Combat bracelet/i.test(n)?' tag-tele':/ rune$/i.test(n)?' tag-rune':'';};
-  function itemCell(item,i){return `<button class="inventory-cell${invTag(item)}" data-item="${i}" title="${item?E(item.name)+' × '+E(item.count)+E(statTip(item)+priceTip(item)):'Empty slot'}" aria-label="${item?E(item.name)+' × '+E(item.count):'Empty inventory slot '+(i+1)}">${item?icon(item.name,32)+(item.count>1?qty(item.count):'')+chargeTag(item):''}</button>`;}
+  // Items kept on death (RuneLite's Items Kept on Death): in the Wilderness, the 3 items the account keeps (pvpState,
+  // green) and the items of value it loses (red), on the worn items and the pack. deathMarks gives the kept units by name
+  // (pvpState counts each unit of a stack once); deathCls uses them up by the stack's count, in the order the cells are
+  // drawn (worn items first). A stack with only some units kept is death-part: green border, red tint.
+  function deathMarks(b){try{const p=b?.inWorld&&b.pos&&wildLevel(b.pos)?pvpState(b):null;if(!p)return null;const keep=new Map();for(const k of p.kept)keep.set(k.name,(keep.get(k.name)||0)+1);return keep;}catch{return null;}}
+  function deathCls(marks,item){
+    if(!marks||!item?.name)return '';
+    const count=Math.max(1,item.count||1),left=marks.get(item.name)||0,take=Math.min(left,count);
+    if(take>0)marks.set(item.name,left-take);
+    if(take>=count)return ' death-kept';
+    if(take>0)return ' death-part';
+    return (S?.economy?.itemValues?.[item.name]??(item.name==='Coins'?1:0))>0?' death-lost':'';
+  }
+  function itemCell(item,i,extra=''){return `<button class="inventory-cell${invTag(item)}${extra}" data-item="${i}" title="${item?E(item.name)+' × '+E(item.count)+E(statTip(item)+priceTip(item)):'Empty slot'}" aria-label="${item?E(item.name)+' × '+E(item.count):'Empty inventory slot '+(i+1)}">${item?icon(item.name,32)+(item.count>1?qty(item.count):'')+chargeTag(item):''}</button>`;}
   // The combat level line under the Skills tab, with the levels each style needs for the next one on hover.
   function combatLine(b){const X=window.atlasXp;if(!b?.skills?.length||!X?.combat)return '';const lv=Object.fromEntries(b.skills.map(s=>[s.name,s.level])),c=X.combat(lv);
     const n=c.next,parts=n?[['Attack/Strength',n.melee],['Defence/Hitpoints',n.defence],['Prayer',n.prayer],['Ranged',n.ranged],['Magic',n.magic]].filter(([,v])=>v!=null).map(([k,v])=>v+' '+k):[];
@@ -151,10 +164,10 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   }
   function gamePanel(){
     const b=account(),panel=$('#game-panel');let html='';
-    if(selectedTab==='inventory'){html=b?.inventory?'<div class="inventory-grid">'+Array.from({length:28},(_,i)=>itemCell(b.inventory[i],i)).join('')+'</div>'+invWorth(b.inventory):'<p class="game-muted">Select an account with a reported inventory.</p>';}
+    if(selectedTab==='inventory'){const dm=deathMarks(b);if(dm)for(const it of b.equipment||[])deathCls(dm,it);html=b?.inventory?'<div class="inventory-grid">'+Array.from({length:28},(_,i)=>itemCell(b.inventory[i],i,deathCls(dm,b.inventory[i]))).join('')+'</div>'+invWorth(b.inventory):'<p class="game-muted">Select an account with a reported inventory.</p>';}
     if(selectedTab==='skills'){html='<div class="skill-grid">'+skills.filter(n=>reported(b,n)).map(n=>{const s=level(n);return `<button class="game-skill" data-skill="${n}" title="${n}${s?(s.xp!=null?' · '+s.xp.toLocaleString()+' XP':' · level '+s.level):' · not reported by this game'}"><img src="${asset('skill-'+skillFile(n)+'.png')}" alt=""><span>${s?s.currentLevel??s.level:'—'}<small>／${s?s.level:'—'}</small></span></button>`;}).join('')+'</div><div class="skill-total">Total level: '+(b?.skills?.filter(realSkill).reduce((n,s)=>n+s.level,0)??'—')+'</div>'+combatLine(b);}
     if(selectedTab==='equipment'&&b?.equipment?.length&&b.equipment.every(e=>e.slot==null)){html='<div class="game-list">'+b.equipment.map(it=>`<span class="equip-row">${icon(it.name,32)}<span>${E(it.name)}</span></span>`).join('')+'</div><p class="game-muted">The '+E(b.side||'other')+' side reports worn items without their slots. Snapshot '+age(b.at)+' old.</p>';}
-    else if(selectedTab==='equipment'){const slots=[[0,'Head',78,4,0],[1,'Cape',37,43,1],[2,'Neck',78,43,2],[13,'Ammo',119,43,10],[3,'Weapon',22,82,3],[4,'Body',78,82,5],[5,'Shield',134,82,6],[7,'Legs',78,122,7],[9,'Hands',22,162,8],[10,'Feet',78,162,9],[12,'Ring',134,162,4]];html='<div class="equipment-doll">'+slots.map(([id,name,x,y,f])=>{const it=b?.equipment?.find(e=>e.slot===id),su=setupSlot(b,id,it);return `<button class="equipment-slot${su.cls}" style="left:${x}px;top:${y}px" data-equipment="${id}" title="${(it?E(it.name)+(it.count>1?' × '+E(it.count):''):name+' · '+(b?.equipment?'empty':'not reported'))+E(su.tip)}">${it?icon(it.name,32)+(it.count>1?qty(it.count):'')+chargeTag(it):'<i class="worn-icon" style="background-position:-'+32*(f%4)+'px -'+32*Math.floor(f/4)+'px"></i>'}</button>`;}).join('')+'</div>'+(b?'<p class="game-muted">'+(b.equipment?(window.atlasOperator()?'Observed ':'Updated ')+''+age(b.at)+' ago':'Equipment is not reported for this account.')+'</p>':'<p class="game-muted">Select an account in the title bar.</p>')+setupPanel(b);}
+    else if(selectedTab==='equipment'){const slots=[[0,'Head',78,4,0],[1,'Cape',37,43,1],[2,'Neck',78,43,2],[13,'Ammo',119,43,10],[3,'Weapon',22,82,3],[4,'Body',78,82,5],[5,'Shield',134,82,6],[7,'Legs',78,122,7],[9,'Hands',22,162,8],[10,'Feet',78,162,9],[12,'Ring',134,162,4]];const dm=deathMarks(b);html='<div class="equipment-doll">'+slots.map(([id,name,x,y,f])=>{const it=b?.equipment?.find(e=>e.slot===id),su=setupSlot(b,id,it);return `<button class="equipment-slot${su.cls}${deathCls(dm,it)}" style="left:${x}px;top:${y}px" data-equipment="${id}" title="${(it?E(it.name)+(it.count>1?' × '+E(it.count):''):name+' · '+(b?.equipment?'empty':'not reported'))+E(su.tip)}">${it?icon(it.name,32)+(it.count>1?qty(it.count):'')+chargeTag(it):'<i class="worn-icon" style="background-position:-'+32*(f%4)+'px -'+32*Math.floor(f/4)+'px"></i>'}</button>`;}).join('')+'</div>'+(b?'<p class="game-muted">'+(b.equipment?(window.atlasOperator()?'Observed ':'Updated ')+''+age(b.at)+' ago':'Equipment is not reported for this account.')+'</p>':'<p class="game-muted">Select an account in the title bar.</p>')+setupPanel(b);}
     if(selectedTab==='quests'&&questScope==='fleet')html=fleetQuests();
     else if(selectedTab==='quests'){
       const quests=b?.quests||[];
@@ -193,8 +206,10 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     let rows='';
     if(k&&b){
       const have=n=>(b.inventory||[]).filter(i=>i&&String(i.name).toLowerCase()===n.toLowerCase()).reduce((t,i)=>t+(i.count||1),0);
+      // The bank's count of each kit item, for a restock (b.bank is the last observed bank).
+      const banked=n=>Array.isArray(b.bank)?b.bank.filter(i=>i&&String(i.name).toLowerCase()===n.toLowerCase()).reduce((t,i)=>t+(i.count||1),0):null;
       const differ=Object.entries(k.worn).filter(([id,w])=>!sameItem(b.equipment?.find(e=>e.slot===Number(id)),w)).length;
-      rows='<p class="game-muted">'+(b.equipment?differ?differ+' worn slot'+(differ===1?'':'s')+' differ from the kit':'Every worn slot matches the kit':'Equipment is not reported.')+'</p>'+k.carried.map(([n,c])=>{const h=have(n);return `<div class="setup-row ${h>=c?'setup-have':'setup-short'}" title="${E(n)}: ${nf(h)} held, ${nf(c)} in the kit">${icon(n,24)}<span>${E(n)}</span><span>${nf(h)} / ${nf(c)}</span></div>`;}).join('');
+      rows='<p class="game-muted">'+(b.equipment?differ?differ+' worn slot'+(differ===1?'':'s')+' differ from the kit':'Every worn slot matches the kit':'Equipment is not reported.')+'</p>'+k.carried.map(([n,c])=>{const h=have(n),bk=banked(n);return `<div class="setup-row ${h>=c?'setup-have':'setup-short'}" title="${E(n)}: ${nf(h)} held, ${nf(c)} in the kit${bk==null?'':', '+nf(bk)+' in the bank'}">${icon(n,24)}<span>${E(n)}</span><span>${nf(h)} / ${nf(c)}${bk==null?'':` <small class="setup-bank${h+bk<c?' setup-bank-short':''}">bank ${nf(bk)}</small>`}</span></div>`;}).join('');
     }
     return `<div class="setup"><label>Setup <select data-setup-kit aria-label="Inventory setup">${opts}</select></label>${rows}</div>`;
   }
@@ -254,6 +269,23 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const best=acts.filter(a=>a[1]<=lvl&&a[2]>0).sort((a,b)=>b[2]-a[2])[0]||null,next=acts.filter(a=>a[1]>lvl).sort((a,b)=>a[1]-b[1]||b[2]-a[2]).slice(0,3);
     return {best:best&&left?{name:best[0],count:Math.ceil(left/best[2])}:null,next:next.map(a=>({name:a[0],level:a[1]}))};
   }
+  // Best training spot (Skill Calculator): for woodcutting or mining, the best tree or rock the account can use at its
+  // level (skill-actions.json, resources.json; normal trees are not in resources.json) and the nearest one on its floor.
+  function bestSpot(b,skill,lvl){
+    if(typeof resources==='undefined'||!resources||!/^(woodcutting|mining)$/i.test(String(skill||'')))return null;
+    const kinds=resources.kinds||{},p=b?.live||b?.pos||null;
+    for(const a of (skillActions?.[String(skill).toLowerCase()]||[]).filter(a=>a[1]<=lvl).sort((x,y)=>y[2]-x[2])){
+      // The action's name, else its first output item, names the resource; a name that already ends in rock or tree is one
+      // ("Limestone rock": skill-actions.json names some actions after their table row).
+      const want=resourceOf(a[0])||resourceOf(a[4]?.[0]||'')||(/ (rock|tree)$/i.test(a[0])?a[0]:null);if(!want)continue;
+      const ids=new Set(Object.keys(kinds).filter(id=>String(kinds[id]?.name||'').toLowerCase()===want.toLowerCase()).map(Number));
+      const tiles=resources.tiles.filter(t=>ids.has(t[3])).map(t=>({x:t[0],z:t[1],l:t[2]}));if(!tiles.length)continue;
+      const near=p?tiles.filter(t=>t.l===(p.level||0)&&(t.z>6400)===(p.z>6400)).map(t=>({...t,d:Math.max(Math.abs(t.x-p.x),Math.abs(t.z-p.z))})).sort((x,y)=>x.d-y.d)[0]||null:null;
+      return {name:want,level:a[1],tiles,near};
+    }
+    return null;
+  }
+  const bestSpotLine=(b,lvl)=>{const s=bestSpot(b,calcSkill,lvl);return s?'<div class="calc-best">Best now: <b>'+E(s.name)+'</b> (level '+s.level+')'+(s.near?' · nearest '+nf(s.near.d)+' tiles':'')+' <button class="xp-reset" data-best-pin="'+E(s.name)+'">'+(sourcePin?.key==='best|'+s.name?'Shown':'Show on map')+'</button></div>':'';};
   const guideText=g=>!g?'':(g.best?' · '+nf(g.best.count)+' × '+g.best.name+' to level':'')+(g.next.length?' · next: '+g.next[0].name+' at '+g.next[0].level:'');
   function calcBox(b,row){
     const X=window.atlasXp,k=(b.skills||[]).find(x=>x.name===calcSkill);
@@ -262,7 +294,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const left=lvl>=99?0:Math.max(0,X.xpForLevel(target)-k.xp),rate=row?.rate>0?row.rate:b.goalSkill===calcSkill&&b.xpPerHour>0?b.xpPerHour:0;
     const acts=skillActions?.[calcSkill.toLowerCase()]||[];
     const list=acts.map(([name,level,xp,inputs,outputs])=>{const n=Math.ceil(left/xp),can=level<=lvl;return `<div class="calc-row${can?'':' calc-locked'}" title="${E(name+' · level '+level+' · '+xp+' xp each'+(inputs.length?' · uses '+inputs.join(', '):''))}">${icon(outputs?.[0]||name,24)}<span class="calc-name">${E(name)}<small>Level ${level} · ${xp} xp${inputs.length?' · '+E(inputs.join(', ')):''}</small></span><span class="calc-count">${nf(n)}</span></div>`;}).join('');
-    return `<div class="xp-box calc"><div class="xp-head"><span>Skill Calculator · ${E(calcSkill)}</span><button class="xp-reset" data-calc-close>Close</button></div><div class="calc-levels"><span>Current <b>${lvl}</b> <i class="xp-muted">${nf(k.xp)} xp</i></span><label>Target <input type="number" min="${lvl+1}" max="99" value="${target}" data-calc-target aria-label="Target level"></label></div><div class="xp-meta"><span><b>${nf(left)}</b> xp left</span><span>${left&&rate?'TTL '+dur(left/rate*3.6e6)+' at '+nf(Math.round(rate))+'/hr':left?'no rate yet':'done'}</span></div>${acts.length?'<div class="calc-list">'+list+'</div>':'<span class="xp-muted">The server has no action table for this skill.</span>'}</div>`;
+    return `<div class="xp-box calc"><div class="xp-head"><span>Skill Calculator · ${E(calcSkill)}</span><button class="xp-reset" data-calc-close>Close</button></div><div class="calc-levels"><span>Current <b>${lvl}</b> <i class="xp-muted">${nf(k.xp)} xp</i></span><label>Target <input type="number" min="${lvl+1}" max="99" value="${target}" data-calc-target aria-label="Target level"></label></div>${bestSpotLine(b,lvl)}<div class="xp-meta"><span><b>${nf(left)}</b> xp left</span><span>${left&&rate?'TTL '+dur(left/rate*3.6e6)+' at '+nf(Math.round(rate))+'/hr':left?'no rate yet':'done'}</span></div>${acts.length?'<div class="calc-list">'+list+'</div>':'<span class="xp-muted">The server has no action table for this skill.</span>'}</div>`;
   }
   const XP_STORE='atlas-xp-baselines';
   const xpStore=()=>{try{return JSON.parse(localStorage.getItem(XP_STORE)||'{}')||{};}catch{return {};}},saveXpStore=store=>{try{localStorage.setItem(XP_STORE,JSON.stringify(store));}catch{/* private window */}};
@@ -425,7 +457,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   //   tiles    red: the death tile of the open recap; pies: the respawn timers
   //   marks    the Ground markers that the viewer placed; fails: orange, where an account's last run failed
   //   finder   pink: the spawns of the NPC that the NPC finder shows
-  const HL_KEY='atlas-highlights',HL_DEFAULT={players:true,npcs:true,ground:true,groundMin:1000,multi:true,tiles:true,skilling:true,trail:true,marks:true,fails:true,icons:true,items:true,invTags:true,idle:true};
+  const HL_KEY='atlas-highlights',HL_DEFAULT={players:true,npcs:true,ground:true,groundMin:1000,multi:true,tiles:true,skilling:true,trail:true,marks:true,fails:true,icons:true,items:true,invTags:true,idle:true,busy:true};
   const hl=(()=>{try{return {...HL_DEFAULT,...JSON.parse(localStorage.getItem(HL_KEY)||'{}')};}catch{return {...HL_DEFAULT};}})();
   const saveHl=()=>{try{localStorage.setItem(HL_KEY,JSON.stringify(hl));}catch{/* private window */}};
   // recentTargets belong to one watched account (targetsFor); another account starts an empty list.
@@ -490,6 +522,10 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   function nearestTeleport(tiles){let best=null;for(const t of tiles||[])for(const [x,z,l,k,label] of mapIcons||[]){if(k!=='t'||l!==(t.l||0)||(z>6400)!==(t.z>6400))continue;const d=Math.max(Math.abs(x-t.x),Math.abs(z-t.z));if(d<=80&&(!best||d<best.d))best={label,d};}return best;}
   const teleText=tiles=>{const t=nearestTeleport(tiles);return t?'Closest teleport: '+t.label+', '+t.d+' tiles':'';};
   const geTele=flat=>{const t=flat?.length?nearestTeleport(flatTiles(flat)):null;return t?' <small class="ge-tele" title="'+E('Closest teleport: '+t.label+', '+t.d+' tiles')+'">· '+E(t.label)+', '+t.d+' tiles</small>':'';};
+  // Map icons by requirement (RuneLite's World Map shortcut colours): with the watched account's levels, a shortcut it
+  // cannot use is red and a teleport spell it cannot cast is dark blue; true, false, or null with no level known. The game
+  // checks the current level (stat(), boosts count: knowledge/teleports.json), so currentLevel, else the base level.
+  const iconCan=(b,req)=>{if(!req||!b?.skills)return null;const s=b.skills.find(x=>String(x.name).toLowerCase()===String(req[0]).toLowerCase()),lv=Number.isFinite(s?.currentLevel)?s.currentLevel:s?.level;return Number.isFinite(lv)?lv>=req[1]:null;};
   const flatTiles=a=>{const t=[];for(let i=0;i+2<(a?.length||0);i+=3)t.push({x:a[i],z:a[i+1],l:a[i+2]});return t;};
   // What the pink layer shows: the NPC finder's pick, else the pinned item source.
   function pinned(){const r=typeof finderRow==='function'?finderRow():null;if(r)return {label:r[0]+(r[2]?' ('+r[2]+')':''),tip:r[0]+' ('+combatText(r)+')',tiles:spawnTiles(r)};return sourcePin;}
@@ -554,7 +590,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   }
   function highlightsBox(){
     const box=(k,label)=>`<label class="hl-row"><input type="checkbox" data-hl="${k}" ${hl[k]?'checked':''}> ${label}</label>`;
-    return `<div class="xp-box"><div class="xp-head"><span>Highlights</span><span class="xp-muted">in the 3D view</span></div><div class="hl-grid">${box('players','Players: red can attack, cyan rivals')}${box('npcs','NPCs the account fought')}${box('ground','Floor item labels')}${box('multi','Multi-combat and Wilderness lines')}${box('tiles','Death tile and respawn pies')}${box('skilling','Trees, rocks, fishing spots and agility obstacles of the account')}${box('trail','Walked path')}${box('marks','Ground markers')}${box('fails','Where runs failed (orange)')}${box('idle','Idle 3+ minutes (yellow)')}${box('icons','Minimap: teleports, shortcuts, shop names')}${box('items','Minimap: floor items (red)')}${box('invTags','Inventory tags: food, potions, teleports, runes')}<label class="hl-row">Hide labels below <select data-hl-min>${[0,1000,10000,100000].map(v=>`<option value="${v}" ${hl.groundMin===v?'selected':''}>${v?nf(v)+' gp':'nothing'}</option>`).join('')}</select></label></div></div>`;
+    return `<div class="xp-box"><div class="xp-head"><span>Highlights</span><span class="xp-muted">in the 3D view</span></div><div class="hl-grid">${box('players','Players: red can attack, cyan rivals')}${box('npcs','NPCs the account fought')}${box('ground','Floor item labels')}${box('multi','Multi-combat and Wilderness lines')}${box('tiles','Death tile and respawn pies')}${box('skilling','Trees, rocks, fishing spots and agility obstacles of the account')}${box('trail','Walked path')}${box('marks','Ground markers')}${box('fails','Where runs failed (orange)')}${box('idle','Idle 3+ minutes (yellow)')}${box('icons','Minimap: teleports, shortcuts, shop names')}${box('items','Minimap: floor items (red)')}${box('busy','Minimap: busy areas (5+ players)')}${box('invTags','Inventory tags: food, potions, teleports, runes')}<label class="hl-row">Hide labels below <select data-hl-min>${[0,1000,10000,100000].map(v=>`<option value="${v}" ${hl.groundMin===v?'selected':''}>${v?nf(v)+' gp':'nothing'}</option>`).join('')}</select></label></div></div>`;
   }
   function markersBox(){
     const b=account(),p=b?.live||b?.pos||null,colours=MARK_COLOURS.map(([c,n])=>'<option value="'+c+'" '+(c===markColour?'selected':'')+'>'+n+'</option>').join('');
@@ -890,7 +926,13 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
       // On the map of the whole world a dot is a square of 2 pixels, or 3 for a fleet bot, so that a crowd stays readable.
       if(!p){const x0=x-(s>>1),y0=y-(s>>1);g.fillStyle='#000';g.fillRect(x0,y0,s+1,s+1);g.fillStyle=col;g.fillRect(x0,y0,s,s);return;}
       g.fillStyle='#000';g.fillRect(x-2,y+1,4,1);g.fillRect(x-1,y+2,2,1);g.fillStyle=col;g.fillRect(x-1,y-2,2,4);g.fillRect(x-2,y-1,4,2);g.fillStyle=shade;g.fillRect(x+1,y-1,1,2);g.fillRect(x-1,y+1,2,1);};
-    const fleetNames=new Set(markers.bots.map(o=>o.name.toLowerCase()));for(const [n,qx,qz] of markers.roster){const low=String(n).toLowerCase();if(fleetNames.has(low))continue;if(D.rival.has(low))dot(qx,qz,'#19b3ff','#0f84c4',n,2);else if(D.farm.has(low))dot(qx,qz,'#9a9a9a','#757575',n,2);else dot(qx,qz,'#fff','#d2d2d2',n,2);}
+    // Busy areas: each 8 by 8 tile square with 5 or more players on the shown floor, shaded red (darker for more players).
+    if(typeof hl!=='undefined'&&hl.busy){const floor=bp?.level||0,cell=new Map();for(const r of markers.roster){if((r[3]||0)!==floor||(r[2]>6400)!==(cz>6400))continue;const k=Math.floor(r[1]/8)+','+Math.floor(r[2]/8);cell.set(k,(cell.get(k)||0)+1);}
+      const corner=(qx,qz)=>{const dx=(qx-cx-0.5)*PX,dy=(cz-qz+0.5)*PX;return [OX+dx*cos-dy*sin,OY+dx*sin+dy*cos];};
+      for(const [k,n] of cell){if(n<5)continue;const [gx,gz]=k.split(',').map(Number),x0=gx*8,z0=gz*8,pts=[corner(x0,z0),corner(x0+8,z0),corner(x0+8,z0+8),corner(x0,z0+8)];g.fillStyle='rgba(255,40,0,'+Math.min(0.5,0.12+n*0.02)+')';g.beginPath();pts.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();g.fill();const c=corner(x0+4,z0+4);hits.push([Math.round(c[0]),Math.round(c[1]),n+' players here']);}}
+    const fleetNames=new Set(markers.bots.map(o=>o.name.toLowerCase()));// In the Wilderness, a player who can attack the watched account now (PvP Tools) is a red dot.
+    const attackers=new Set(((b&&b.inWorld&&b.pos&&wildLevel(b.pos)?pvpState(b)?.threats:null)||[]).map(t=>String(t.name).toLowerCase()));
+    for(const [n,qx,qz] of markers.roster){const low=String(n).toLowerCase();if(fleetNames.has(low))continue;if(attackers.has(low))dot(qx,qz,'#ff2020','#b00000',n,2);else if(D.rival.has(low))dot(qx,qz,'#19b3ff','#0f84c4',n,2);else if(D.farm.has(low))dot(qx,qz,'#9a9a9a','#757575',n,2);else dot(qx,qz,'#fff','#d2d2d2',n,2);}
     for(const o of markers.bots){const q=o.live||o.pos;if(!q||(q.z>6400)!==(cz>6400)||o===b)continue;const[cl]=st(o);if(cl==='on')dot(q.x,q.z,'#2bff2b','#1fc21f',o.name,3);else dot(q.x,q.z,'#3d8a33','#2c6625',o.name,3);}
     // Death recap: the watched account's death tile, while its recap is open.
     const dt=typeof recap!=='undefined'&&recap.state==='ok'&&b&&recap.name===b.name?recap.data?.pos:null;if(dt&&(dt.z>6400)===(cz>6400))dot(dt.x,dt.z,'#ff2020','#a00000','Death tile',3);
@@ -906,9 +948,9 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     // World Map icons and the watched account's floor items (the game's red minimap dots), on the shown floor, zoomed in.
     if(p&&typeof hl!=='undefined'){const floor=bp?.level||0,inView=(x,y)=>x>=-4&&y>=-4&&x<=W+4&&y<=H+4;
       if(hl.items&&Array.isArray(b?.ground))for(const it of b.ground){if(!Array.isArray(it)||it[2]!==floor||!sameSide(it[1]))continue;const [x,y]=mp(it[0],it[1]);if(!inView(x,y))continue;g.fillStyle='#000';g.fillRect(x-1,y,3,2);g.fillStyle='#ff0000';g.fillRect(x-1,y-1,2,2);hits.push([x,y,'Floor item'+(it[4]>1?' × '+it[4]:'')]);}
-      if(hl.icons&&typeof mapIcons!=='undefined'&&mapIcons)for(const [qx,qz,l,k,label] of mapIcons){if(l!==floor||!sameSide(qz))continue;const [x,y]=mp(qx,qz);if(!inView(x,y))continue;hits.push([x,y,label]);
+      if(hl.icons&&typeof mapIcons!=='undefined'&&mapIcons)for(const [qx,qz,l,k,label,req] of mapIcons){if(l!==floor||!sameSide(qz))continue;const [x,y]=mp(qx,qz);if(!inView(x,y))continue;const can=iconCan(b,req);hits.push([x,y,label+(can===false?' · needs '+req[1]+' '+req[0]:'')]);
         // The map art already has the game's shop icons: a shop keeper is named under the pointer, with no mark of its own.
-        if(k==='s')continue;g.fillStyle='#000';g.beginPath();g.arc(x+0.5,y+0.5,3.5,0,7);g.fill();g.fillStyle=k==='t'?'#3f7fff':k==='p'?'#00d0d0':'#2bd32b';if(k==='a')g.fillRect(x-2,y-2,5,5);else{g.beginPath();g.arc(x+0.5,y+0.5,2.5,0,7);g.fill();}}}
+        if(k==='s')continue;g.fillStyle='#000';g.beginPath();g.arc(x+0.5,y+0.5,3.5,0,7);g.fill();g.fillStyle=k==='t'?(can===false?'#24407a':'#3f7fff'):k==='p'?'#00d0d0':can===false?'#e02020':'#2bd32b';if(k==='a')g.fillRect(x-2,y-2,5,5);else{g.beginPath();g.arc(x+0.5,y+0.5,2.5,0,7);g.fill();}}}
 
     if(typeof hl!=='undefined'&&hl.idle&&typeof idleRows==='function'){const shownBots=new Set(markers.bots.map(o=>o.name));for(const r of idleRows()){if(!sameSide(r.z)||!shownBots.has(r.name))continue;const [x,y]=mp(r.x,r.z);g.strokeStyle='#ffff00';g.lineWidth=1;g.beginPath();g.arc(x+0.5,y+0.5,5,0,7);g.stroke();hits.push([x,y,safeName(r.name)+' idle '+Math.floor(r.ms/60000)+'m']);}}
     if(typeof hl!=='undefined'&&hl.fails&&typeof failSpots==='function')for(const f of failSpots())if(sameSide(f.z))dot(f.x,f.z,'#ff9900','#b36b00',(f.names.length>1?f.names.length+' failed':safeName(f.names[0])+' failed')+': '+f.reason,3);
@@ -922,7 +964,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   const MINI_ZOOMS=[2,3,4,6,8];try{const z=Number(localStorage.getItem('atlasMiniZoom'));if(MINI_ZOOMS.includes(z))minimap.zoom=z;}catch{/* no storage: 4 px a tile */}
   miniCanvas?.addEventListener('wheel',e=>{e.preventDefault();const now=minimap.zoom||4,next=MINI_ZOOMS[Math.max(0,Math.min(MINI_ZOOMS.length-1,MINI_ZOOMS.indexOf(now)+(e.deltaY<0?1:-1)))];if(next===now)return;minimap.zoom=next;try{localStorage.setItem('atlasMiniZoom',String(next));}catch{/* the zoom holds for this visit */}minimap();},{passive:false});
   // The pointer on the minimap names the tile under it, and the players whose dots it touches.
-  miniCanvas?.addEventListener('mousemove',e=>{const t=miniAt(e),tip=hud.querySelector('.game-tip'),names=[...new Set((minimap.hits||[]).filter(h=>Math.abs(h[0]-t.x)<=3&&Math.abs(h[1]-t.y)<=3).map(h=>safeName(h[2])))];
+  miniCanvas?.addEventListener('mousemove',e=>{const t=miniAt(e),tip=hud.querySelector('.game-tip'),cb=new Map((S?.roster||[]).map(r=>[String(r[0]).toLowerCase(),r[4]])),names=[...new Set((minimap.hits||[]).filter(h=>Math.abs(h[0]-t.x)<=3&&Math.abs(h[1]-t.y)<=3).map(h=>{const c=cb.get(String(h[2]).toLowerCase());return safeName(h[2])+(Number.isFinite(c)?' ('+c+')':'');}))];
     tip.textContent=(names.length?names.slice(0,4).join(', ')+(names.length>4?' +'+(names.length-4):'')+' · ':'')+t.tx+', '+t.tz;tip.hidden=false;const h=hud.getBoundingClientRect();tip.style.left=Math.max(0,e.clientX-h.left-tip.offsetWidth-10)+'px';tip.style.top=(e.clientY-h.top+12)+'px';});
   // Only a player dot looks up: the hits also hold floor items, markers and icons, whose labels can look like a name.
   const playerNames=()=>new Set([...(S?.roster||[]).map(r=>String(r[0]).toLowerCase()),...(S?.bots||[]).map(b=>String(b.name).toLowerCase())]);
@@ -1743,7 +1785,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   hud.addEventListener('click',e=>{const dth=e.target.closest('.infobox[data-death]');if(dth){loadRecap(dth.dataset.death);showPlugin('activity');return;}const f=e.target.closest('.infobox[data-xp-focus]');if(f){pick(f.dataset.xpFocus);}});
   body.addEventListener('input',e=>{if(e.target.matches?.('[data-finder]')){finderQuery=e.target.value.slice(0,40);finderPick=null;loadSpawns();finderResults();overlaySync(true);minimap();}});
   body.addEventListener('focusin',e=>{if(e.target.matches?.('[data-finder]'))loadSpawns();});
-  body.addEventListener('click',e=>{const pin=e.target.closest('[data-src-pin]');if(pin&&geOpen){const j=Number(pin.dataset.srcPin),src=itemSourcesData?.[geOpen]?.[j];if(src){const key=geOpen+'|'+j;sourcePin=sourcePin?.key===key?null:{key,label:geOpenName+': '+src[1].replace(/ ·.*$/,''),tip:geOpenName+' · '+src[1],tiles:flatTiles(src[2])};finderPick=null;overlaySync(true);minimap();refreshGe();if(sourcePin)toast('Shown in pink on the minimap and in the 3D view.');}return;}
+  body.addEventListener('click',e=>{const bp=e.target.closest('[data-best-pin]');if(bp){const b=account(),k=b?.skills?.find(x=>x.name===calcSkill),s=k?bestSpot(b,calcSkill,window.atlasXp.levelForXp(k.xp)):null;if(s){const key='best|'+s.name;sourcePin=sourcePin?.key===key?null:{key,label:s.name,tip:s.name+' (level '+s.level+')',tiles:s.tiles};finderPick=null;overlaySync(true);minimap();refreshXp();if(sourcePin)toast('Shown in pink on the minimap and in the 3D view.');}return;}const pin=e.target.closest('[data-src-pin]');if(pin&&geOpen){const j=Number(pin.dataset.srcPin),src=itemSourcesData?.[geOpen]?.[j];if(src){const key=geOpen+'|'+j;sourcePin=sourcePin?.key===key?null:{key,label:geOpenName+': '+src[1].replace(/ ·.*$/,''),tip:geOpenName+' · '+src[1],tiles:flatTiles(src[2])};finderPick=null;overlaySync(true);minimap();refreshGe();if(sourcePin)toast('Shown in pink on the minimap and in the 3D view.');}return;}
     const gr=e.target.closest('[data-ge-src]');if(gr){geOpen=geOpen===gr.dataset.geSrc?null:gr.dataset.geSrc;geOpenName=gr.dataset.geName||'';refreshGe();return;}},true);
   body.addEventListener('click',e=>{const mk=e.target.closest('[data-mark-here],[data-mark-del],[data-mark-go],[data-mark-clear],[data-finder-pick],[data-finder-clear],[data-finder-go]');if(mk){const d=mk.dataset,b=account(),p=b?.live||b?.pos;
       if('markHere' in d){if(p)toggleMark(p.x,p.z,p.level||0);}else if('markDel' in d){marks.splice(Number(d.markDel),1);saveMarks();marksChanged();}else if('markClear' in d){marks=[];saveMarks();marksChanged();}
