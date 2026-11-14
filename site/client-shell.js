@@ -402,11 +402,23 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
       const ids=new Set(Object.keys(kinds).filter(id=>String(kinds[id]?.name||'').toLowerCase()===want.toLowerCase()).map(Number));
       const tiles=resources.tiles.filter(t=>ids.has(t[3])).map(t=>({x:t[0],z:t[1],l:t[2]}));if(!tiles.length)continue;
       const near=p?tiles.filter(t=>t.l===(p.level||0)&&(t.z>6400)===(p.z>6400)).map(t=>({...t,d:Math.max(Math.abs(t.x-p.x),Math.abs(t.z-p.z))})).sort((x,y)=>x.d-y.d)[0]||null:null;
-      return {name:want,level:a[1],tiles,near};
+      return {name:want,level:a[1],tiles,near,item:a[4]?.[0]||a[0]};
     }
     return null;
   }
-  const bestSpotLine=(b,lvl)=>{const s=bestSpot(b,calcSkill,lvl);return s?'<div class="calc-best">Best now: <b>'+E(s.name)+'</b> (level '+s.level+')'+(s.near?' · nearest '+nf(s.near.d)+' tiles':'')+' <button class="xp-reset" data-best-pin="'+E(s.name)+'">'+(sourcePin?.key==='best|'+s.name?'Shown':'Show on map')+'</button></div>':'';};
+  // Gather chance (RuneLite's Woodcutting and Mining overlays, with the server's roll): client-assets/gather-chance.json
+  // (gen-gather-chance.ts) has each tree's [low, high] for each axe and each rock's [low, high], by the log or ore.
+  // woodcut.rs2 and mining.rs2 roll stat_random: floor(low*(99-L)/98) + floor(high*(L-1)/98) + 1 beats a roll of 0-255.
+  // A tree counts the best axe the account holds or wears; a pickaxe changes how often a rock is tried, not the roll.
+  let gatherData={};if(typeof asset==='function'&&typeof fetch==='function')fetch(asset('gather-chance.json')).then(r=>r.ok?r.json():{}).then(j=>{gatherData=j||{};},()=>{});
+  // The roll uses the current level (a boost or a drain counts), else the level from the XP.
+  function gatherText(b,item,lvl,skill){const g=gatherData[item],cur=skill&&typeof curLevel==='function'?curLevel(b,skill):null;if(Number.isFinite(cur))lvl=cur;if(!g||!Number.isFinite(lvl))return '';
+    const roll=([lo,hi])=>{const l=Math.min(lvl,99);return Math.min(Math.floor(lo*(99-l)/98)+Math.floor(hi*(l-1)/98)+1,256)/256;};
+    if(g.roll)return Math.round(roll(g.roll)*100)+'% a try';
+    const held=new Set([...(b?.inventory||[]),...(b?.equipment||[])].filter(Boolean).map(i=>i.name));
+    const t=(g.tool||[]).filter(([n])=>held.has(n)).map(([n,lo,hi])=>({n,p:roll([lo,hi])})).sort((x,y)=>y.p-x.p)[0];
+    return t?Math.round(t.p*100)+'% a try with the '+t.n.toLowerCase():'no axe held';}
+  const bestSpotLine=(b,lvl)=>{const s=bestSpot(b,calcSkill,lvl);return s?'<div class="calc-best">Best now: <b>'+E(s.name)+'</b> (level '+s.level+')'+(gatherText(b,s.item,lvl,calcSkill)?' · '+E(gatherText(b,s.item,lvl,calcSkill)):'')+(s.near?' · nearest '+nf(s.near.d)+' tiles':'')+' <button class="xp-reset" data-best-pin="'+E(s.name)+'">'+(sourcePin?.key==='best|'+s.name?'Shown':'Show on map')+'</button></div>':'';};
   const guideText=g=>!g?'':(g.best?' · '+nf(g.best.count)+' × '+g.best.name+' to level':'')+(g.next.length?' · next: '+g.next[0].name+' at '+g.next[0].level:'');
   function calcBox(b,row){
     const X=window.atlasXp,k=(b.skills||[]).find(x=>x.name===calcSkill);
