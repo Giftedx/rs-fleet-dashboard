@@ -769,7 +769,14 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const hit=(A,D)=>A>D?1-(D+2)/(2*(A+1)):A/(2*(D+1)),styles=['stab','slash','crush'];
     const best=list.map(v=>styles.map((st,i)=>({st,p:hit((L+8)*(bon[i]+64),(v[1]+9)*(v[3+i]+64))})).sort((x,y)=>y.p-x.p)[0]);
     const lo=Math.round(Math.min(...best.map(x=>x.p))*100),hi=Math.round(Math.max(...best.map(x=>x.p))*100),st=[...new Set(best.map(x=>x.st))];
-    return 'Melee hit at Attack '+L+': '+(lo===hi?lo+'%':lo+'–'+hi+'%')+' with '+st.join(' or ');}
+    // Ranged and magic, when the worn gear gives that attack bonus: the account's ranged roll (current Ranged + 8) x (range
+    // attack + 64) against (defence + 9) x (range defence + 64); its magic roll (current Magic + 9: magic always has a
+    // style bonus of 1) x (magic attack + 64) against the NPC's (magic level + 9) x (magic defence + 64).
+    const pct=f=>{const p=list.map(f),a=Math.round(Math.min(...p)*100),z=Math.round(Math.max(...p)*100);return a===z?a+'%':a+'–'+z+'%';};
+    const R=curLevel(b,'Ranged'),M=curLevel(b,'Magic'),extra=[];
+    if(bon[4]>0&&Number.isFinite(R))extra.push('ranged '+pct(v=>hit((R+8)*(bon[4]+64),(v[1]+9)*(v[7]+64))));
+    if(bon[3]>0&&Number.isFinite(M))extra.push('magic '+pct(v=>hit((M+9)*(bon[3]+64),(v[2]+9)*(v[6]+64))));
+    return 'Melee hit at Attack '+L+': '+(lo===hi?lo+'%':lo+'–'+hi+'%')+' with '+st.join(' or ')+(extra.length?' · '+extra.join(' · '):'');}
   function finderList(){
     if(finderPlayer){const p=playerRow(),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,d=p&&c?Math.max(Math.abs(p[1]-c.x),Math.abs(p[2]-c.z)):null;
       return '<div class="finder-pick"><b>'+E(p?String(p[0]):finderPlayer)+'</b> <span class="xp-muted">'+(p?'combat '+(p[4]??'?')+' · '+p[1]+', '+p[2]+(d!=null?' · '+nf(d)+' tiles away':''):'not online')+'</span>'+(p?'<button class="xp-reset" data-finder-go="'+p[1]+','+p[2]+'" title="Move the camera there (2D)">Go</button><button class="xp-reset" data-lookup="'+E(String(p[0]))+'">Hiscores</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button></div>';}
