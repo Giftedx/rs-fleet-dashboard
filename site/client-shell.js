@@ -411,13 +411,14 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // woodcut.rs2 and mining.rs2 roll stat_random: floor(low*(99-L)/98) + floor(high*(L-1)/98) + 1 beats a roll of 0-255.
   // A tree counts the best axe the account holds or wears; a pickaxe changes how often a rock is tried, not the roll.
   let gatherData={};if(typeof asset==='function'&&typeof fetch==='function')fetch(asset('gather-chance.json')).then(r=>r.ok?r.json():{}).then(j=>{gatherData=j||{};},()=>{});
-  function gatherText(b,item,lvl){const g=gatherData[item];if(!g||!Number.isFinite(lvl))return '';
+  // The roll uses the current level (a boost or a drain counts), else the level from the XP.
+  function gatherText(b,item,lvl,skill){const g=gatherData[item],cur=skill&&typeof curLevel==='function'?curLevel(b,skill):null;if(Number.isFinite(cur))lvl=cur;if(!g||!Number.isFinite(lvl))return '';
     const roll=([lo,hi])=>{const l=Math.min(lvl,99);return Math.min(Math.floor(lo*(99-l)/98)+Math.floor(hi*(l-1)/98)+1,256)/256;};
     if(g.roll)return Math.round(roll(g.roll)*100)+'% a try';
     const held=new Set([...(b?.inventory||[]),...(b?.equipment||[])].filter(Boolean).map(i=>i.name));
     const t=(g.tool||[]).filter(([n])=>held.has(n)).map(([n,lo,hi])=>({n,p:roll([lo,hi])})).sort((x,y)=>y.p-x.p)[0];
     return t?Math.round(t.p*100)+'% a try with the '+t.n.toLowerCase():'no axe held';}
-  const bestSpotLine=(b,lvl)=>{const s=bestSpot(b,calcSkill,lvl);return s?'<div class="calc-best">Best now: <b>'+E(s.name)+'</b> (level '+s.level+')'+(gatherText(b,s.item,lvl)?' · '+E(gatherText(b,s.item,lvl)):'')+(s.near?' · nearest '+nf(s.near.d)+' tiles':'')+' <button class="xp-reset" data-best-pin="'+E(s.name)+'">'+(sourcePin?.key==='best|'+s.name?'Shown':'Show on map')+'</button></div>':'';};
+  const bestSpotLine=(b,lvl)=>{const s=bestSpot(b,calcSkill,lvl);return s?'<div class="calc-best">Best now: <b>'+E(s.name)+'</b> (level '+s.level+')'+(gatherText(b,s.item,lvl,calcSkill)?' · '+E(gatherText(b,s.item,lvl,calcSkill)):'')+(s.near?' · nearest '+nf(s.near.d)+' tiles':'')+' <button class="xp-reset" data-best-pin="'+E(s.name)+'">'+(sourcePin?.key==='best|'+s.name?'Shown':'Show on map')+'</button></div>':'';};
   const guideText=g=>!g?'':(g.best?' · '+nf(g.best.count)+' × '+g.best.name+' to level':'')+(g.next.length?' · next: '+g.next[0].name+' at '+g.next[0].level:'');
   function calcBox(b,row){
     const X=window.atlasXp,k=(b.skills||[]).find(x=>x.name===calcSkill);
