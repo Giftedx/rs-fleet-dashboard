@@ -807,12 +807,29 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     for(const [item,e] of list){const p=price(item);if(!p){unpriced++;continue;}const v=p.value*e;total+=v;parts.push([item,v]);}
     if(!parts.length)return '';parts.sort((a,b)=>b[1]-a[1]);
     return 'Loot about '+nf(Math.round(total))+' gp a kill ('+parts.slice(0,3).map(([i])=>i).join(', ')+')'+(unpriced?' · '+unpriced+' unpriced':'');}
+  // Kills an hour (melee, an estimate): one attack does the hit chance x max hit / 2 on average (a hit is 0 up to the max,
+  // randominc); a kill takes hitpoints / that many attacks, each the weapon's attack speed (client-assets/weapon-speed.json,
+  // gen-combat-data.ts; 4 ticks without a weapon or param) in ticks of the live server's length. Non-stop fighting with no
+  // respawn wait or walk, and overkill not counted, so it is an upper figure. The max hit is the current Strength with the
+  // worn strength bonus and no style bonus; XP an hour is one style, gold an hour the loot value of a kill.
+  let weaponSpeedData={};if(typeof asset==='function'&&typeof fetch==='function')fetch(asset('weapon-speed.json')).then(r=>r.ok?r.json():{}).then(j=>{weaponSpeedData=j||{};},()=>{});
+  function lootTotal(name){const list=npcLootData[name];if(!list?.length||typeof price!=='function')return 0;let t=0;for(const [item,e] of list){const p=price(item);if(p)t+=p.value*e;}return t;}
+  function hourText(name){let list=(npcDefData[name]||[]).filter(v=>v.length>14&&v[13]>0);if(list.some(v=>v[14]>=1000))list=list.filter(v=>v[14]>=1000);const b=typeof account==='function'?account():null;
+    if(!list.length||typeof wornBonuses!=='function'||typeof maxHit!=='function')return '';const bon=wornBonuses(b),A=curLevel(b,'Attack'),St=curLevel(b,'Strength');if(!bon||!Number.isFinite(A)||!Number.isFinite(St))return '';
+    // A ranged weapon (a range attack bonus, as equipStats tells it) gets no melee estimate.
+    const weapon=(b.equipment||[]).find(e=>e?.slot===3)?.name;if(weapon&&typeof itemBonusData!=='undefined'&&(itemBonusData?.[weapon]?.[4]||0)>0)return '';
+    const speed=(weapon&&weaponSpeedData[weapon])||4,tickSec=((typeof S!=='undefined'&&S?.world?.tickMs)||600)/1000,max=maxHit(St,bon[10],0);if(!(max>0))return '';
+    const hit=(At,D)=>At>D?1-(D+2)/(2*(At+1)):At/(2*(D+1)),loot=lootTotal(name);
+    // Each variant's kill rate times its own XP a kill: the extremes of two lists belong to different variants.
+    const rates=list.map(v=>{const p=Math.max(...[0,1,2].map(i=>hit((A+8)*(bon[i]+64),(v[1]+9)*(v[3+i]+64)))),dmg=p*max/2,k=dmg>0?3600/((v[13]/dmg)*speed*tickSec):0;return {k,xp:k*v[13]*100*v[14]/1000};}).filter(r=>r.k>0);
+    if(!rates.length)return '';const ks=rates.map(r=>r.k),xs=rates.map(r=>r.xp),lo=Math.min(...ks),hi=Math.max(...ks),span=(a,z)=>Math.round(a)===Math.round(z)?nf(Math.round(a)):nf(Math.round(a))+'–'+nf(Math.round(z));
+    return 'About '+span(lo,hi)+' kills an hour (max hit '+max+', speed '+speed+') · '+span(Math.min(...xs),Math.max(...xs))+' XP/h in one style'+(loot>0?' · '+span(lo*loot,hi*loot)+' gp/h':'');}
   function finderList(){
     if(finderPlayer){const p=playerRow(),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,d=p&&c?Math.max(Math.abs(p[1]-c.x),Math.abs(p[2]-c.z)):null;
       return '<div class="finder-pick"><b>'+E(p?String(p[0]):finderPlayer)+'</b> <span class="xp-muted">'+(p?'combat '+(p[4]??'?')+' · '+p[1]+', '+p[2]+(d!=null?' · '+nf(d)+' tiles away':''):'not online')+'</span>'+(p?'<button class="xp-reset" data-finder-go="'+p[1]+','+p[2]+'" title="Move the camera there (2D)">Go</button><button class="xp-reset" data-lookup="'+E(String(p[0]))+'">Hiscores</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button></div>';}
     const r=finderRow();
     if(r){const tiles=spawnTiles(r),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,best=c?tiles.map(t=>({...t,d:Math.max(Math.abs(t.x-c.x),Math.abs(t.z-c.z))})).sort((a,b)=>a.d-b.d)[0]:null;
-      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+(thieveText(r[0])?'<small class="finder-tele">'+E(thieveText(r[0]))+'</small>':'')+(meleeHitText(r[0])?'<small class="finder-tele">'+E(meleeHitText(r[0]))+'</small>':'')+(npcHitsText(r[0])?'<small class="finder-tele">'+E(npcHitsText(r[0]))+'</small>':'')+(killXpText(r[0])?'<small class="finder-tele">'+E(killXpText(r[0]))+'</small>':'')+(lootText(r[0])?'<small class="finder-tele">'+E(lootText(r[0]))+'</small>':'')+'</div>';}
+      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+(thieveText(r[0])?'<small class="finder-tele">'+E(thieveText(r[0]))+'</small>':'')+(meleeHitText(r[0])?'<small class="finder-tele">'+E(meleeHitText(r[0]))+'</small>':'')+(npcHitsText(r[0])?'<small class="finder-tele">'+E(npcHitsText(r[0]))+'</small>':'')+(killXpText(r[0])?'<small class="finder-tele">'+E(killXpText(r[0]))+'</small>':'')+(lootText(r[0])?'<small class="finder-tele">'+E(lootText(r[0]))+'</small>':'')+(hourText(r[0])?'<small class="finder-tele">'+E(hourText(r[0]))+'</small>':'')+'</div>';}
     // While the NPC list loads, the players (from the roster, already here) still show.
     if(npcSpawns!==null&&!npcSpawns.length&&!playerMatches(finderQuery).length)return '<span class="xp-muted">Loading NPC spawns…</span>';
     const m=finderMatches(finderQuery),pm=playerMatches(finderQuery);
