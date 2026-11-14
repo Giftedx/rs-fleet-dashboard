@@ -652,9 +652,12 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // NPC finder: type an NPC name in the World plugin; its spawns show in pink on the minimap and in the 3D view
   // (client-assets/npc-spawns.json: every NPC of the pinned server by name, with its combat levels and spawn tiles).
   let npcSpawns=null,finderQuery='',finderPick=null;
-  const loadSpawns=()=>{if(npcSpawns===null){npcSpawns=[];fetch(asset('npc-spawns.json')).then(r=>r.ok?r.json():[]).then(j=>{if(Array.isArray(j)){npcSpawns=j;if(typeof selectedPlugin!=='undefined'&&selectedPlugin==='world')finderResults();}},()=>{});}};
+  const loadSpawns=()=>{if(npcSpawns===null){npcSpawns=[];fetch(asset('npc-spawns.json')).then(r=>r.ok?r.json():[]).then(j=>{if(Array.isArray(j)){npcSpawns=j;if(typeof selectedPlugin!=='undefined'&&selectedPlugin==='world'){finderResults();const tb=body.querySelector('.train-box');if(tb)tb.innerHTML=trainInner();}}},()=>{});}};
   const spawnTiles=row=>{const t=[];for(let i=0;i+2<(row?.[3]?.length||0);i+=3)t.push({x:row[3][i],z:row[3][i+1],l:row[3][i+2]});return t;};
-  const finderRow=()=>finderPick&&npcSpawns?npcSpawns.find(r=>r[0]===finderPick)||null:null;
+  // finderSafe (a Combat training row): the pick keeps only its spawns outside the Wilderness, for the nearest spawn and the pins.
+  let finderSafe=false;
+  const finderRow=()=>{const r=finderPick&&npcSpawns?npcSpawns.find(r=>r[0]===finderPick)||null:null;if(!r||!finderSafe||typeof wildLevel!=='function')return r;
+    const pts=[];for(let i=0;i+2<r[3].length;i+=3)if(!wildLevel({x:r[3][i],z:r[3][i+1]}))pts.push(r[3][i],r[3][i+1],r[3][i+2]);return pts.length?[r[0],r[1],r[2],pts]:r;};
   // Player finder: an online player of the roster ([name, x, z, level, combat]) by name; the pin follows each snapshot.
   // A name the page hides (safeName changes it) is never offered.
   let finderPlayer=null;
@@ -814,8 +817,8 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // worn strength bonus and no style bonus; XP an hour is one style, gold an hour the loot value of a kill.
   let weaponSpeedData={};if(typeof asset==='function'&&typeof fetch==='function')fetch(asset('weapon-speed.json')).then(r=>r.ok?r.json():{}).then(j=>{weaponSpeedData=j||{};},()=>{});
   function lootTotal(name){const list=npcLootData[name];if(!list?.length||typeof price!=='function')return 0;let t=0;for(const [item,e] of list){const p=price(item);if(p)t+=p.value*e;}return t;}
-  function hourText(name){let list=(npcDefData[name]||[]).filter(v=>v.length>14&&v[13]>0);if(list.some(v=>v[14]>=1000))list=list.filter(v=>v[14]>=1000);const b=typeof account==='function'?account():null;
-    if(!list.length||typeof wornBonuses!=='function'||typeof maxHit!=='function')return '';const bon=wornBonuses(b);if(!bon)return '';
+  function hourRates(name,safeOnly){let list=(npcDefData[name]||[]).filter(v=>v.length>14&&v[13]>0);if(list.some(v=>v[14]>=1000))list=list.filter(v=>v[14]>=1000);const b=typeof account==='function'?account():null;
+    if(!list.length||typeof wornBonuses!=='function'||typeof maxHit!=='function')return null;const bon=wornBonuses(b);if(!bon)return null;
     // A ranged weapon (a range attack bonus, as equipStats tells it) rolls ranged: the max hit is the current Ranged with
     // the worn ranged strength (ammo counts), and its roll (Ranged + 8) x (range attack + 64) meets the NPC's (defence + 9)
     // x (range defence + 64). Other weapons roll melee, the best of stab, slash and crush.
@@ -826,18 +829,42 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     // A staff, not any weapon with a magic bonus: every dagger has magic attack +1 (item-bonuses.json). Every magic weapon of
     // the server has staff in its name (Staff, Magic staff, the battlestaves, the mystic staves, Iban's, the god staves).
     const spell=!ranged&&(wb?.[3]||0)>0&&/staff/i.test(weapon||'')&&typeof bestSpell==='function'?bestSpell(b):null,magic=!!spell;
-    const A=curLevel(b,'Attack'),St=curLevel(b,'Strength'),R=curLevel(b,'Ranged'),M=curLevel(b,'Magic');if(magic?!Number.isFinite(M):ranged?!Number.isFinite(R):(!Number.isFinite(A)||!Number.isFinite(St)))return '';
-    const speed=magic?5:(weapon&&weaponSpeedData[weapon])||4,tickSec=((typeof S!=='undefined'&&S?.world?.tickMs)||600)/1000,max=magic?spell.max:ranged?maxHit(R,bon[11],0):maxHit(St,bon[10],0);if(!(max>0))return '';
+    const A=curLevel(b,'Attack'),St=curLevel(b,'Strength'),R=curLevel(b,'Ranged'),M=curLevel(b,'Magic');if(magic?!Number.isFinite(M):ranged?!Number.isFinite(R):(!Number.isFinite(A)||!Number.isFinite(St)))return null;
+    const speed=magic?5:(weapon&&weaponSpeedData[weapon])||4,tickSec=((typeof S!=='undefined'&&S?.world?.tickMs)||600)/1000,max=magic?spell.max:ranged?maxHit(R,bon[11],0):maxHit(St,bon[10],0);if(!(max>0))return null;
     const hit=(At,D)=>At>D?1-(D+2)/(2*(At+1)):At/(2*(D+1)),loot=lootTotal(name);
     const chance=v=>magic?hit((M+9)*(bon[3]+64),(v[2]+9)*(v[6]+64)):ranged?hit((R+8)*(bon[4]+64),(v[1]+9)*(v[7]+64)):Math.max(...[0,1,2].map(i=>hit((A+8)*(bon[i]+64),(v[1]+9)*(v[3+i]+64))));
     // Each variant's kill rate times its own XP a kill: the extremes of two lists belong to different variants.
     // Magic XP: the spell's cast XP on every cast (pvm_spell_cast, hit or splash) plus 2 XP a damage point (combat.rs2,
     // style_magic_normal: 20 tenths) x the XP rate, i.e. 50, times the NPC's multiplier / 1000. Melee and ranged: 100 a
-    // damage point in one style.
-    const castsPerHour=3600/(speed*tickSec);
-    const rates=list.map(v=>{const dmg=chance(v)*max/2,k=dmg>0?3600/((v[13]/dmg)*speed*tickSec):0;return {k,xp:magic?castsPerHour*spell.xp+k*v[13]*50*v[14]/1000:k*v[13]*100*v[14]/1000};}).filter(r=>r.k>0);
-    if(!rates.length)return '';const ks=rates.map(r=>r.k),xs=rates.map(r=>r.xp),lo=Math.min(...ks),hi=Math.max(...ks),span=(a,z)=>Math.round(a)===Math.round(z)?nf(Math.round(a)):nf(Math.round(a))+'–'+nf(Math.round(z));
-    return 'About '+span(lo,hi)+' kills an hour ('+(magic?'magic, '+spell.name+', ':ranged?'ranged, ':'')+'max hit '+max+', speed '+speed+') · '+span(Math.min(...xs),Math.max(...xs))+' XP/h '+(magic?'in Magic':'in one style')+(loot>0?' · '+span(lo*loot,hi*loot)+' gp/h':'');}
+    // damage point in one style. The casts are those of the kills (hitpoints / damage a cast), so time spent on the
+    // death and on the respawn wait gives no cast XP.
+    // Overkill: a hit of 0 to max takes no more than the NPC has, so a swing does chance x the mean of min(hit, hitpoints)
+    // (an 8 hitpoint cow wastes most of a 14 hit). The last swing of a kill can still overkill more; this counts the cap.
+    const capped=hp=>{let t=0;for(let d=0;d<=max;d++)t+=Math.min(d,hp);return t/(max+1);};
+    // A kill cycle is the swings of a kill, plus 2 ticks for the death and the next target. Each spawn gives one kill per
+    // fight plus respawn (the respawn starts at the death), so a cycle is no shorter than (kill + respawn) over the spawns
+    // of that name (npc-spawns.json; few spawns make the account wait). Walking is not counted.
+    // safeOnly (Combat training): only the spawns outside the Wilderness count, as the training tip sends the account there.
+    const spawnRow=typeof npcSpawns!=='undefined'&&npcSpawns?npcSpawns.find(r=>r[0]===name):null,wl=safeOnly&&typeof wildLevel==='function'?wildLevel:null;
+    let spawns=0;if(spawnRow)for(let i=0;i+1<spawnRow[3].length;i+=3)if(!wl||!wl({x:spawnRow[3][i],z:spawnRow[3][i+1]}))spawns++;if(spawnRow)spawns=Math.max(1,spawns);
+    const rates=list.map(v=>{const dmg=chance(v)*capped(v[13]),kill=dmg>0?(v[13]/dmg)*speed*tickSec+2*tickSec:0,wait=spawns&&v.length>15?(kill+v[15]*tickSec)/spawns:0,k=kill>0?3600/Math.max(kill,wait):0;return {k,xp:magic?k*((v[13]/dmg)*spell.xp+v[13]*50*v[14]/1000):k*v[13]*100*v[14]/1000};}).filter(r=>r.k>0);
+    if(!rates.length)return null;const ks=rates.map(r=>r.k),xs=rates.map(r=>r.xp);
+    return {lo:Math.min(...ks),hi:Math.max(...ks),xLo:Math.min(...xs),xHi:Math.max(...xs),magic,ranged,spell,max,speed,loot};}
+  function hourText(name){const r=hourRates(name);if(!r)return '';const span=(a,z)=>Math.round(a)===Math.round(z)?nf(Math.round(a)):nf(Math.round(a))+'–'+nf(Math.round(z));
+    return 'About '+span(r.lo,r.hi)+' kills an hour ('+(r.magic?'magic, '+r.spell.name+', ':r.ranged?'ranged, ':'')+'max hit '+r.max+', speed '+r.speed+') · '+span(r.xLo,r.xHi)+' XP/h '+(r.magic?'in Magic':'in one style')+(r.loot>0?' · '+span(r.lo*r.loot,r.hi*r.loot)+' gp/h':'');}
+  // Combat training (RuneLite has none; the Skill Calculator for combat): the five NPCs where the followed account earns
+  // the most XP an hour (hourRates, the low end of each name's range) among the names that spawn in the world. A name
+  // whose melee max hit is a third of the account's current Hitpoints or more is left out as too risky to train on. Gear
+  // that the dashboard has not seen (equipmentObserved false, an account offline) gives no estimate, so no box.
+  function trainRows(){const b=typeof account==='function'?account():null,hp=typeof curLevel==='function'?curLevel(b,'Hitpoints'):null;if(!Number.isFinite(hp)||!npcSpawns)return [];
+    // A name counts when one of its spawns is outside the Wilderness: a training tip never sends an account into PvP.
+    const wild=typeof wildLevel==='function'?wildLevel:()=>0,safe=r=>{for(let i=0;i+1<r[3].length;i+=3)if(!wild({x:r[3][i],z:r[3][i+1]}))return true;return false;};
+    const spawned=new Set(npcSpawns.filter(safe).map(r=>r[0])),out=[];
+    for(const name of Object.keys(npcDefData)){if(!spawned.has(name))continue;const max=Math.max(0,...(npcDefData[name]||[]).filter(v=>v.length>11).map(v=>Math.floor(((v[9]+9)*(v[11]+64)+320)/640)));if(max*3>=hp)continue;const r=hourRates(name,true);if(r&&r.xLo>0)out.push({name,xp:r.xLo,kills:r.lo,max});}
+    return out.sort((a,c)=>c.xp-a.xp).slice(0,5);}
+  // The box starts the spawn load. The wrapper stays on the page, so loadSpawns can fill it when the data arrives.
+  function trainBox(){if(typeof loadSpawns==='function')loadSpawns();return '<div class="train-box">'+trainInner()+'</div>';}
+  function trainInner(){const rows=trainRows();if(!rows.length)return '';return '<div class="xp-box"><div class="xp-head"><span>Combat training</span><span class="xp-muted">best XP/h now</span></div>'+rows.map(r=>'<button class="finder-row" data-finder-pick="'+E(r.name)+'" data-finder-safe title="'+E(r.name+': about '+nf(Math.round(r.kills))+' kills an hour; it hits up to '+r.max)+'"><span>'+E(r.name)+'</span><small>'+nf(Math.round(r.xp))+' XP/h</small></button>').join('')+'</div>';}
   function finderList(){
     if(finderPlayer){const p=playerRow(),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,d=p&&c?Math.max(Math.abs(p[1]-c.x),Math.abs(p[2]-c.z)):null;
       return '<div class="finder-pick"><b>'+E(p?String(p[0]):finderPlayer)+'</b> <span class="xp-muted">'+(p?'combat '+(p[4]??'?')+' · '+p[1]+', '+p[2]+(d!=null?' · '+nf(d)+' tiles away':''):'not online')+'</span>'+(p?'<button class="xp-reset" data-finder-go="'+p[1]+','+p[2]+'" title="Move the camera there (2D)">Go</button><button class="xp-reset" data-lookup="'+E(String(p[0]))+'">Hiscores</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button></div>';}
@@ -896,7 +923,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const wild=S.bots.filter(x=>!x.practice&&!x.reserved&&x.inWorld&&wildLevel(x.pos)).map(x=>({b:x,p:pvpState(x)})).filter(v=>v.p);
     const party=partyBox();
     const pvp=wild.length?`<div class="xp-box"><div class="xp-head"><span>Attackable now</span><span class="xp-muted">in the Wilderness</span></div>${wild.map(({b:x,p})=>`<details class="spot-row" data-k="pvp:${E(x.name)}"><summary title="${E('Wilderness '+p.wild+' · risk '+gp(p.risk)+' · kept '+gp(p.keptValue))}"><span class="xp-name">${E(safeName(x.name))} <i class="xp-muted">lvl ${p.wild}</i></span><span class="${p.threats.length?'xp-bad':'xp-muted'}">${p.threats.length} can attack · risk ${gp(p.risk)}</span></summary>${p.threats.map(t=>`<div class="xp-meta"><span>${E(t.name)}</span><span>combat ${t.combat} · ${t.dist} tiles</span></div>`).join('')||'<div class="xp-meta"><span>Nobody in attack range within 30 tiles.</span></div>'}</details>`).join('')}</div>`:'';
-    return `<div class="xp-panel"><div class="xp-box"><div class="xp-head"><span>Online now</span><span class="xp-gain">${nf(roster.length)}</span></div><div class="xp-meta"><span>${ours} of them are ours</span>${owner?'<span>world feed, every 6 s</span>':''}</div></div>`+party+pvp+respawnBox()+highlightsBox()+markersBox()+finderBox()+
+    return `<div class="xp-panel"><div class="xp-box"><div class="xp-head"><span>Online now</span><span class="xp-gain">${nf(roster.length)}</span></div><div class="xp-meta"><span>${ours} of them are ours</span>${owner?'<span>world feed, every 6 s</span>':''}</div></div>`+party+pvp+respawnBox()+highlightsBox()+markersBox()+finderBox()+(typeof trainBox==='function'?trainBox():'')+
       `<div class="xp-box"><div class="xp-head" title="Other players within 10 tiles of a tile our accounts use, on the ground floor."><span>Our spots</span><span class="xp-muted">other players</span></div>${spots.map(s=>`<details class="spot-row" data-k="spot:${owner?s.x+','+s.z+':'+E(s.side):E(s.label)}"><summary title="${E(s.others.length+' other players, '+s.ours.length+' of ours'+(owner?' · '+s.x+', '+s.z:''))}"><span>${E(s.label)}</span><span class="spot-ours" title="${s.ours.length} of our accounts here">${'<i></i>'.repeat(Math.min(s.ours.length,6))}</span><span class="spot-bar"><i style="width:${Math.round(s.others.length/most*100)}%"></i></span><b>${s.others.length}</b></summary>${owner?`<div class="xp-meta"><span>claimed by ${E(s.side)}</span><span>${s.x}, ${s.z}</span></div>`:''}<div class="spot-names">${nameButtons(s.others,24)||'<span class="xp-muted">No other player is here.</span>'}</div></details>`).join('')||`<span class="xp-muted">${owner?'No claimed spot has a tile.':'No spot is in use.'}</span>`}${named.length&&owner?`<p class="xp-muted">Claimed without a tile: ${named.map(s=>E(s.resource)).join(', ')}</p>`:''}</div>`+
       farmsBox(spots)+'</div>';
   }
@@ -2090,7 +2117,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   body.addEventListener('click',e=>{const mk=e.target.closest('[data-mark-here],[data-mark-del],[data-mark-go],[data-mark-clear],[data-finder-pick],[data-finder-player],[data-finder-clear],[data-finder-go]');if(mk){const d=mk.dataset,b=account(),p=b?.live||b?.pos;
       if('markHere' in d){if(p)toggleMark(p.x,p.z,p.level||0);}else if('markDel' in d){marks.splice(Number(d.markDel),1);saveMarks();marksChanged();}else if('markClear' in d){marks=[];saveMarks();marksChanged();}
       else if('markGo' in d||'finderGo' in d){const [x,z]='markGo' in d?[marks[Number(d.markGo)]?.x,marks[Number(d.markGo)]?.z]:d.finderGo.split(',').map(Number);if(Number.isInteger(x)&&Number.isInteger(z)){if(typeof mode!=='undefined'&&mode==='3d')toast('In 3D, drag the view to move the camera.');else window.atlasCamera.goto(x,z);}}
-      else if('finderPlayer' in d){finderPlayer=d.finderPlayer.toLowerCase();finderPick=null;sourcePin=null;finderResults();overlaySync(true);minimap();}else if('finderPick' in d){finderPick=d.finderPick;finderPlayer=null;sourcePin=null;finderResults();overlaySync(true);minimap();}else if('finderClear' in d){finderPick=null;finderPlayer=null;finderResults();overlaySync(true);minimap();}
+      else if('finderPlayer' in d){finderPlayer=d.finderPlayer.toLowerCase();finderPick=null;sourcePin=null;finderResults();overlaySync(true);minimap();}else if('finderPick' in d){finderPick=d.finderPick;finderSafe='finderSafe' in d;finderPlayer=null;sourcePin=null;finderResults();overlaySync(true);minimap();}else if('finderClear' in d){finderPick=null;finderPlayer=null;finderResults();overlaySync(true);minimap();}
       return;}
     const sh=e.target.closest('[data-shot]');if(sh){const s=shots.find(x=>x.id===sh.dataset.shot);if(s){let v=document.querySelector('.shot-view');if(!v){v=document.createElement('div');v.className='shot-view';v.addEventListener('click',()=>v.remove());document.body.append(v);}v.innerHTML='<img alt=""><p></p>';v.querySelector('img').src=s.url;v.querySelector('p').textContent=safeName(s.name)+' · '+s.text+' · '+new Date(s.at).toLocaleString();}return;}const lk=e.target.closest('[data-lookup]');if(lk){lookup(lk.dataset.lookup);return;}const fw=e.target.closest('[data-world-follow]');if(fw){const name=fw.dataset.worldFollow,ours=S.bots.find(b=>b.name.toLowerCase()===name.toLowerCase()&&!b.practice),from=focusTarget();if(ours)pick(ours.name);else if(window.atlasFollow3d?.(name))focusMoved(from,name);else toast('The 3D view is not ready, so the camera cannot watch a player.');return;}if(e.target.closest('[data-ge-all]')){geAll=!geAll;refreshGe();return;}const hm=e.target.closest('[data-hs-mode]');if(hm){hiscoresMode=hm.dataset.hsMode;hiscores();return;}if(e.target.closest('[data-xp-reset]')){const store=xpStore();delete store[sel];saveXpStore(store);refreshXp();}if(e.target.closest('[data-xp-pause]')){const store=xpStore(),b=account(),base=b&&store[b.name];if(base){if(base.paused){const gap=Date.now()-base.paused.at;base.at+=gap;for(const k of b.skills||[])if(typeof k.xp==='number'&&base.paused.xp[k.name]!=null)base.xp[k.name]=(base.xp[k.name]??base.paused.xp[k.name])+(k.xp-base.paused.xp[k.name]);delete base.paused;}else base.paused={at:Date.now(),xp:Object.fromEntries((b.skills||[]).map(k=>[k.name,k.xp]))};saveXpStore(store);}refreshXp();}const hm2=e.target.closest('[data-xp-hide-maxed]');if(hm2){xpHideMaxed=hm2.checked;refreshXp();}if(e.target.closest('[data-calc-close]')){calcSkill=null;refreshXp();return;}const cs=e.target.closest('[data-calc-skill]');if(cs&&!e.target.closest('input')){calcSkill=cs.dataset.calcSkill===calcSkill?null:cs.dataset.calcSkill;calcTarget=null;refreshXp();return;}const xs=e.target.closest('[data-xp-sort]');if(xs){xpSort=xs.dataset.xpSort;refreshXp();return;}const f=e.target.closest('[data-xp-focus]');if(f){pick(f.dataset.xpFocus);showPlugin('xp');}});
   hud.onchange=e=>{if(e.target.id==='game-display'){app.classList.toggle('client-collapsed',e.target.value==='closed');app.classList.toggle('mobile-plugin',e.target.value!=='closed');syncSidebar();}if(e.target.id==='game-quality'){$('#atlas-quality').value=e.target.value;$('#atlas-quality').onchange();}if(e.target.id==='game-roofs')window.atlasSetRoofsOff(e.target.value==='off');};
