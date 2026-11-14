@@ -785,12 +785,23 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const hit=(A,Dr)=>A>Dr?1-(Dr+2)/(2*(A+1)):A/(2*(Dr+1)),span=a=>{const lo=Math.min(...a),hi=Math.max(...a);return lo===hi?String(lo):lo+'–'+hi;};
     const max=list.map(v=>Math.floor(((v[9]+9)*(v[11]+64)+320)/640)),p=list.map(v=>Math.round(hit((v[8]+9)*(v[10]+64),(D+8)*(bon[5+v[12]]+64))*100));
     return 'It hits up to '+span(max)+' · lands '+span(p)+'% on your Defence '+D;}
+  // The XP of a kill (combat.rs2 give_combat_experience): each damage point gives 4 XP to a one-style skill and 1.33 to
+  // Hitpoints, in tenths times the NPC's multiplier / 1000, and the server's XP rate (25) on top: a kill of H hitpoints is
+  // H x 100 x multiplier / 1000 in one style and about H x 33.25 x multiplier / 1000 Hitpoints. The kills to the next
+  // Hitpoints level follow, as every style trains it.
+  // A name that also has normal variants leaves out its random-event ones (multiplier under 1000: the event Zombies).
+  function killXpText(name){let list=(npcDefData[name]||[]).filter(v=>v.length>14&&v[13]>0);if(list.some(v=>v[14]>=1000))list=list.filter(v=>v[14]>=1000);if(!list.length)return '';
+    const one=list.map(v=>Math.round(v[13]*100*v[14]/1000)),hp=list.map(v=>v[13]*33.25*v[14]/1000),span=a=>{const lo=Math.min(...a),hi=Math.max(...a);return lo===hi?nf(lo):nf(lo)+'–'+nf(hi);};
+    let text='A kill: '+span(one)+' XP in one style + about '+span(hp.map(Math.round))+' Hitpoints';
+    const b=typeof account==='function'?account():null,s=(b?.skills||[]).find(x=>x.name==='Hitpoints'),X=window.atlasXp;
+    if(s?.xp!=null&&X){const lv=X.levelForXp(s.xp);if(lv<99){const left=X.xpForLevel(lv+1)-s.xp,most=Math.max(...hp);if(most>0){const k=Math.ceil(left/most);text+=' · '+nf(k)+(k===1?' kill':' kills')+' to Hitpoints '+(lv+1);}}}
+    return text;}
   function finderList(){
     if(finderPlayer){const p=playerRow(),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,d=p&&c?Math.max(Math.abs(p[1]-c.x),Math.abs(p[2]-c.z)):null;
       return '<div class="finder-pick"><b>'+E(p?String(p[0]):finderPlayer)+'</b> <span class="xp-muted">'+(p?'combat '+(p[4]??'?')+' · '+p[1]+', '+p[2]+(d!=null?' · '+nf(d)+' tiles away':''):'not online')+'</span>'+(p?'<button class="xp-reset" data-finder-go="'+p[1]+','+p[2]+'" title="Move the camera there (2D)">Go</button><button class="xp-reset" data-lookup="'+E(String(p[0]))+'">Hiscores</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button></div>';}
     const r=finderRow();
     if(r){const tiles=spawnTiles(r),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,best=c?tiles.map(t=>({...t,d:Math.max(Math.abs(t.x-c.x),Math.abs(t.z-c.z))})).sort((a,b)=>a.d-b.d)[0]:null;
-      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+(thieveText(r[0])?'<small class="finder-tele">'+E(thieveText(r[0]))+'</small>':'')+(meleeHitText(r[0])?'<small class="finder-tele">'+E(meleeHitText(r[0]))+'</small>':'')+(npcHitsText(r[0])?'<small class="finder-tele">'+E(npcHitsText(r[0]))+'</small>':'')+'</div>';}
+      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+(thieveText(r[0])?'<small class="finder-tele">'+E(thieveText(r[0]))+'</small>':'')+(meleeHitText(r[0])?'<small class="finder-tele">'+E(meleeHitText(r[0]))+'</small>':'')+(npcHitsText(r[0])?'<small class="finder-tele">'+E(npcHitsText(r[0]))+'</small>':'')+(killXpText(r[0])?'<small class="finder-tele">'+E(killXpText(r[0]))+'</small>':'')+'</div>';}
     // While the NPC list loads, the players (from the roster, already here) still show.
     if(npcSpawns!==null&&!npcSpawns.length&&!playerMatches(finderQuery).length)return '<span class="xp-muted">Loading NPC spawns…</span>';
     const m=finderMatches(finderQuery),pm=playerMatches(finderQuery);
