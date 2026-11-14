@@ -372,6 +372,11 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // and the items they use. Actions above the current level are greyed, as RuneLite greys them.
   let calcSkill=null,calcTarget=null,skillActions=null;
   fetch(asset('skill-actions.json')).then(r=>r.ok?r.json():null).then(j=>{if(j&&typeof j==='object')skillActions=j;},()=>{});
+  // Runes per essence (RuneLite's Runecraft overlay, with the server's count): client-assets/runecraft.json (gen-runecraft.ts)
+  // has [level, multiplier] by rune; runecraft.rs2 crafts floor(L / multiplier) + 1 runes from each essence at the current
+  // Runecraft level L, and 1 when the rune has no multiplier. The Runecraft To level line shows it and the next step.
+  let runecraftData={};if(typeof asset==='function'&&typeof fetch==='function')fetch(asset('runecraft.json')).then(r=>r.ok?r.json():{}).then(j=>{runecraftData=j||{};},()=>{});
+  function perEssence(rune,L){const r=runecraftData[rune];if(!r||!Number.isFinite(L))return '';const m=r[1];if(!m)return '1 per essence';const n=Math.floor(L/m)+1,next=n*m;return n+' per essence'+(next<=99?' ('+(n+1)+' at '+next+')':'');}
   // Skill guide (RuneLite's Skill Calculator, in the Skills tab tooltip and the XP globes): the best action the account
   // can do now with how many it takes to the next level, and the next actions it unlocks.
   function skillGuide(skill,xp){
@@ -1200,7 +1205,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // Skills tab tooltip (OSRS): XP, next level at, remaining.
   hud.addEventListener('mouseover',e=>{const sk=e.target.closest('[data-skill]');const tip=hud.querySelector('.game-tip');if(!sk){tip.hidden=true;return;}const s=level(sk.dataset.skill),X=window.atlasXp;if(!s||!X){tip.hidden=true;return;}const lvl=Math.min(99,s.level),next=X.xpForLevel(Math.min(99,lvl+1));
     if(s.xp==null){tip.innerHTML=`<div>${E(sk.dataset.skill)} level <b>${s.level}</b></div><div>XP is not reported for this side.</div>`;}else tip.innerHTML=`<div>${E(sk.dataset.skill)} XP: <b>${nf(s.xp)}</b></div>`+(lvl<99?`<div>Next level at: <b>${nf(next)}</b></div><div>Remaining XP: <b>${nf(Math.max(0,next-s.xp))}</b></div>`:X.virtualLevel(s.xp)>99?`<div>Virtual level: <b>${X.virtualLevel(s.xp)}</b></div>`:'');
-    {const g=s.xp!=null?skillGuide(sk.dataset.skill,s.xp):null;if(g){if(g.best){const ch=typeof gatherText==='function'&&/^(fishing|mining|woodcutting)$/i.test(sk.dataset.skill)?gatherText(account(),g.best.item,lvl,sk.dataset.skill):'';tip.innerHTML+=`<div>To level: <b>${nf(g.best.count)}</b> × ${E(g.best.name)}${ch?' · '+E(ch):''}</div>`;}if(g.next.length)tip.innerHTML+=`<div>Unlocks: ${g.next.map(n=>E(n.name)+' ('+n.level+')').join(', ')}</div>`;}
+    {const g=s.xp!=null?skillGuide(sk.dataset.skill,s.xp):null;if(g){if(g.best){const ch=typeof gatherText==='function'&&/^(fishing|mining|woodcutting)$/i.test(sk.dataset.skill)?gatherText(account(),g.best.item,lvl,sk.dataset.skill):/^runecraft/i.test(sk.dataset.skill)&&typeof perEssence==='function'?perEssence(g.best.item,typeof curLevel==='function'&&Number.isFinite(curLevel(account(),s.name))?curLevel(account(),s.name):lvl):'';tip.innerHTML+=`<div>To level: <b>${nf(g.best.count)}</b> × ${E(g.best.name)}${ch?' · '+E(ch):''}</div>`;}if(g.next.length)tip.innerHTML+=`<div>Unlocks: ${g.next.map(n=>E(n.name)+' ('+n.level+')').join(', ')}</div>`;}
      const bx=typeof bankedXp==='function'?bankedXp(account(),sk.dataset.skill):null;if(bx)tip.innerHTML+=`<div>Banked: <b>+${nf(bx.xp)}</b> XP from ${nf(bx.items)} items${bx.level&&bx.level>lvl?' → level '+bx.level:''}</div>`;}
     const r=sk.getBoundingClientRect(),h=hud.getBoundingClientRect();tip.hidden=false;tip.style.left=Math.max(0,r.left-h.left-tip.offsetWidth-4)+'px';tip.style.top=(r.top-h.top)+'px';});
   hud.addEventListener('mouseout',e=>{if(e.target.closest('[data-skill]')&&!e.relatedTarget?.closest?.('[data-skill]'))hud.querySelector('.game-tip').hidden=true;});
