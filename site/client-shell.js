@@ -997,6 +997,8 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // the first count is the most time left. aggroHunters: the NPC names whose hunting variant spawns within 12 tiles on
   // the account's plane and hunts it (client-assets/npc-hunt.json, gen-npc-defence.ts: [name, kind, vislevel, tiles];
   // kind 1 up to combat 2 x vislevel outside the Wilderness, 2 all, 3 never stops). The file loads with the first box.
+  // A practice row (the practice server, another world) has its own key, so it never touches the live account's record.
+  const trackKey=b=>(b?.practice?'practice:':'')+b?.name;
   const aggro=new Map();let npcHunt=null;
   const loadHunt=()=>{if(npcHunt===null&&typeof fetch==='function'&&typeof asset==='function'){npcHunt=[];fetch(asset('npc-hunt.json')).then(r=>r.ok?r.json():[]).then(j=>{if(Array.isArray(j))npcHunt=j;},()=>{});}};
   // An account out of the world loses its record: the server keeps its count in the save (Player.ts), so offline time
@@ -1012,9 +1014,9 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // The tile goes with its read: the live roster's tile (b.live, server.ts or withLiveRoster) when its sight is the
   // newer read, else the status file's b.pos.
   const aggroPos=b=>{const l=b?.live;return l&&Number.isFinite(l.x)&&Number.isFinite(l.z)&&(Number(l.seen)||0)>=(Number(b.at)||0)?{x:l.x,z:l.z,level:l.level||0}:b?.pos;};
-  function aggroTrack(b,now){const p=aggroPos(b);if(!b?.inWorld||!p){if(b?.name)aggro.delete(b.name);return null;}now=aggroNow(b,now);const seen=aggroSeen(b),x=p.x,z=p.z,inside=c=>x>=c[0]&&x<c[0]+21&&z>=c[1]&&z<c[1]+21,c=[x-10,z-10];
-    let t=aggro.get(b.name);if(t&&seen>0&&t.seen>0&&seen-t.seen>30e3)t=null;if(t)t.seen=seen;
-    if(!t){const n={zones:[c,c],since:now,first:true,last:[x,z],seen};aggro.set(b.name,n);return n;}
+  function aggroTrack(b,now){const p=aggroPos(b);if(!b?.inWorld||!p){if(b?.name)aggro.delete(trackKey(b));return null;}now=aggroNow(b,now);const seen=aggroSeen(b),x=p.x,z=p.z,inside=c=>x>=c[0]&&x<c[0]+21&&z>=c[1]&&z<c[1]+21,c=[x-10,z-10];
+    let t=aggro.get(trackKey(b));if(t&&seen>0&&t.seen>0&&seen-t.seen>30e3)t=null;if(t)t.seen=seen;
+    if(!t){const n={zones:[c,c],since:now,first:true,last:[x,z],seen};aggro.set(trackKey(b),n);return n;}
     const jump=Math.max(Math.abs(x-t.last[0]),Math.abs(z-t.last[1]))>40;t.last=[x,z];
     if(inside(t.zones[0])||inside(t.zones[1]))return t;
     t.zones=[c,jump?c:t.zones[0]];t.since=now;t.first=false;return t;}
@@ -1036,13 +1038,16 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // state has no prayers, so each timer measures its period: two counted steps 50 ticks apart (within 6) set it to 50,
   // 100 apart set it back to 100. A drained stat (stat_regen) and a boosted stat (stat_boost_restore) have two timers.
   const regen=new Map(),regenTick=()=>Number(S?.world?.tickMs)||600;
+  // The clock stops 10 s after the status file (b.at), which holds Hitpoints and the levels; the live roster's sight
+  // moves only the tile.
+  const regenNow=(b,now)=>{const at=Number(b?.at)||0;return at>0?Math.min(now,at+10e3):now;};
   const regenStep=(t,now)=>{if(t.at!=null){const gap=(now-t.at)/regenTick();if(Math.abs(gap-50)<=6)t.ticks=50;else if(Math.abs(gap-100)<=6)t.ticks=100;}t.at=now;};
-  function regenTrack(b,now){if(!b?.inWorld||!b.hp||!Number.isFinite(b.hp.now)){if(b?.name)regen.delete(b.name);return null;}if(typeof aggroNow==='function')now=aggroNow(b,now);
+  function regenTrack(b,now){if(!b?.inWorld||!b.hp||!Number.isFinite(b.hp.now)){if(b?.name)regen.delete(trackKey(b));return null;}now=regenNow(b,now);
     const lv={};for(const s of b.skills||[])if(s&&s.name!=='Hitpoints'&&s.name!=='Prayer'&&Number.isFinite(s.currentLevel)&&Number.isFinite(s.level))lv[s.name]=[s.currentLevel,s.level];
     // A step counts only when no item of the pack fell in count between the two reads: food and potions take one away
     // (a cake bite leaves a smaller slice), so a hit and a bite that net +1 are not taken for a timer tick. Loot only adds.
     const inv=new Map();for(const i of b.inventory||[])if(i?.name)inv.set(i.name,(inv.get(i.name)||0)+(i.count||1));
-    const r=regen.get(b.name);if(!r){const n={hp:b.hp.now,lv,inv,heal:{at:null,ticks:100},up:{at:null,ticks:100},down:{at:null,ticks:100}};regen.set(b.name,n);return n;}
+    const r=regen.get(trackKey(b));if(!r){const n={hp:b.hp.now,lv,inv,heal:{at:null,ticks:100},up:{at:null,ticks:100},down:{at:null,ticks:100}};regen.set(trackKey(b),n);return n;}
     let still=true;for(const [k,c] of r.inv)if((inv.get(k)||0)<c){still=false;break;}
     if(still&&b.hp.now===r.hp+1)regenStep(r.heal,now);r.hp=b.hp.now;
     let up=false,down=false;for(const k in lv){const p=r.lv[k];if(still&&p&&p[1]===lv[k][1]&&Math.abs(lv[k][0]-p[0])===1&&Math.abs(lv[k][0]-lv[k][1])<Math.abs(p[0]-p[1])){if(lv[k][0]>p[0])up=true;else down=true;}}
@@ -1051,9 +1056,9 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // The time (ms) until `steps` more ticks of a timer {at, ticks}; at null: the most time ("at most").
   function regenTime(t,steps,now){const period=t.ticks*regenTick();if(steps<=0)return {ms:0,most:false};if(t.at==null)return {ms:steps*100*regenTick(),most:true};const next=period-((now-t.at)%period);return {ms:next+(steps-1)*period,most:false,next};}
   const regenClock=ms=>Math.floor(ms/6e4)+':'+String(Math.floor(ms%6e4/1e3)).padStart(2,'0');
-  function regenHpText(b,now){const r=regen.get(b?.name);if(!r||!b.hp||!(b.hp.max>b.hp.now))return '';const t=regenTime(r.heal,b.hp.max-b.hp.now,typeof aggroNow==='function'?aggroNow(b,now):now);
+  function regenHpText(b,now){const r=regen.get(trackKey(b));if(!r||!b.hp||!(b.hp.max>b.hp.now))return '';const t=regenTime(r.heal,b.hp.max-b.hp.now,regenNow(b,now));
     return (t.most?' · full in at most ':' · next heal in '+regenClock(t.next)+' · full in ')+regenClock(t.ms);}
-  function regenStatText(b,s,now){const r=regen.get(b?.name);if(!r)return '';const t=regenTime(s.currentLevel<s.level?r.up:r.down,Math.abs(s.currentLevel-s.level),typeof aggroNow==='function'?aggroNow(b,now):now);return ' · back to '+s.level+' in '+(t.most?'at most ':'')+regenClock(t.ms);}
+  function regenStatText(b,s,now){const r=regen.get(trackKey(b));if(!r)return '';const t=regenTime(s.currentLevel<s.level?r.up:r.down,Math.abs(s.currentLevel-s.level),regenNow(b,now));return ' · back to '+s.level+' in '+(t.most?'at most ':'')+regenClock(t.ms);}
   // Prayer time left (RuneLite's Prayer plugin, with the server's drain, prayer.rs2 [timer,prayer_drain]): every 5 ticks
   // a counter grows by 5 x the sum of the active prayers' drain effects (prayers.enum prayer_drain_effects: 12 for a
   // protect prayer and the top three); each time it reaches the resistance, 60 + 2 x the prayer bonus (equip.rs2), one
