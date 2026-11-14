@@ -613,6 +613,11 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // Agility obstacles (RuneLite's Agility plugin): for an agility goal or role, the course obstacles and agility
   // shortcuts within 15 tiles are outlined in green with the game's menu option (client-assets/agility.json).
   let agilityTiles=null;
+  // An obstacle that can fail carries [low, high] (gen-world-points.ts, from its handler's stat_random(agility, low,
+  // high)); the label adds the fail chance at the account's current Agility level: 1 - (floor(low*(99-L)/98) +
+  // floor(high*(L-1)/98) + 1) / 256, none when the roll always passes.
+  function agilityLabel(label,roll,b){if(!roll)return label;const L=typeof curLevel==='function'?curLevel(b,'Agility'):null;if(!Number.isFinite(L))return label;
+    const l=Math.min(L,99),pass=Math.min(Math.floor(roll[0]*(99-l)/98)+Math.floor(roll[1]*(l-1)/98)+1,256)/256,fail=Math.round((1-pass)*100);return fail>0?label+' · '+fail+'% fail':label;}
   fetch(asset('agility.json')).then(r=>r.ok?r.json():null).then(j=>{if(Array.isArray(j))agilityTiles=j;},()=>{});
   const agilityFor=b=>String(b?.goalSkill||'').toLowerCase()==='agility'||String(b?.role||'').toLowerCase()==='agility';
   // Ground markers (RuneLite's Ground Markers): tiles that the viewer marks with shift+click on the minimap or with the
@@ -713,7 +718,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
       for(const [x,z,l,id] of resources.tiles)if(l===(b.pos.level||0)&&Math.abs(x-b.pos.x)<=15&&Math.abs(z-b.pos.z)<=15&&fits(id))o.tiles.push({x,z,l,colour:'#00ffff'});
       if(skill==='fishing'&&fishingTypes.length)o.npcs.push({types:fishingTypes,colour:'#00ffff'});
     }
-    if(hl.skilling&&b?.inWorld&&b.pos&&agilityTiles&&agilityFor(b))for(const [x,z,l,label] of agilityTiles)if(l===(b.pos.level||0)&&Math.abs(x-b.pos.x)<=15&&Math.abs(z-b.pos.z)<=15)o.tiles.push({x,z,l,colour:'#00ff00',label});
+    if(hl.skilling&&b?.inWorld&&b.pos&&agilityTiles&&agilityFor(b))for(const [x,z,l,label,roll] of agilityTiles)if(l===(b.pos.level||0)&&Math.abs(x-b.pos.x)<=15&&Math.abs(z-b.pos.z)<=15)o.tiles.push({x,z,l,colour:'#00ff00',label:agilityLabel(label,roll,b)});
     if(hl.trail&&b){const t=trails.get(b.name)||[];for(let i=1;i<t.length;i++)if(t[i].l===t[i-1].l)o.lines.push({x0:t[i-1].x,z0:t[i-1].z,x1:t[i].x,z1:t[i].z,l:t[i].l,colour:t.length-i<=20?'#ffff00':'#9a9a00'});}
     if(hl.tiles){
       if(typeof recap!=='undefined'&&recap.state==='ok'&&recap.data?.pos&&b&&recap.name===b.name)o.tiles.push({x:recap.data.pos.x,z:recap.data.pos.z,l:recap.data.pos.level||0,colour:'#ff0000',fill:true,label:'Death'});
