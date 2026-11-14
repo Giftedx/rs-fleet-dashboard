@@ -758,12 +758,24 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     if(!Number.isFinite(L))return 'Pickpocket: Thieving '+lv+' · '+nf(xp)+' XP';if(L<lv)return 'Pickpocket: Thieving '+lv+' needed (has '+L+')';
     const l=Math.min(L,99),p=Math.min(Math.floor(lo*(99-l)/98)+Math.floor(hi*(l-1)/98)+1,256)/256;
     return 'Pickpocket at Thieving '+L+': '+Math.round(p*100)+'% · '+nf(Math.round(p*xp))+' XP a try'+(p<1?' · a fail stuns '+stun+' ticks and hits '+dmg:'');}
+  // Melee hit chance (RuneLite's opponent information, with the server's rolls): client-assets/npc-defence.json
+  // (gen-npc-defence.ts) has each variant of an NPC name as [combat, defence, magic, stab, slash, crush, magic, range
+  // defence]. The account's roll is (current Attack + 8) x (worn attack bonus + 64), with no style bonus as the style is
+  // not reported (player_combat_stat.rs2); the NPC's is (defence + 9) x (defence bonus + 64) (npc_combat.rs2). A hit
+  // beats the roll, both drawn from 0 up to it: A > D gives 1 - (D + 2) / (2(A + 1)), else A / (2(D + 1)). The best of
+  // stab, slash and crush shows; several variants show the range.
+  let npcDefData={};if(typeof asset==='function'&&typeof fetch==='function')fetch(asset('npc-defence.json')).then(r=>r.ok?r.json():{}).then(j=>{npcDefData=j||{};},()=>{});
+  function meleeHitText(name){const list=npcDefData[name],b=typeof account==='function'?account():null;if(!list?.length||typeof wornBonuses!=='function')return '';const bon=wornBonuses(b),L=typeof curLevel==='function'?curLevel(b,'Attack'):null;if(!bon||!Number.isFinite(L))return '';
+    const hit=(A,D)=>A>D?1-(D+2)/(2*(A+1)):A/(2*(D+1)),styles=['stab','slash','crush'];
+    const best=list.map(v=>styles.map((st,i)=>({st,p:hit((L+8)*(bon[i]+64),(v[1]+9)*(v[3+i]+64))})).sort((x,y)=>y.p-x.p)[0]);
+    const lo=Math.round(Math.min(...best.map(x=>x.p))*100),hi=Math.round(Math.max(...best.map(x=>x.p))*100),st=[...new Set(best.map(x=>x.st))];
+    return 'Melee hit at Attack '+L+': '+(lo===hi?lo+'%':lo+'–'+hi+'%')+' with '+st.join(' or ');}
   function finderList(){
     if(finderPlayer){const p=playerRow(),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,d=p&&c?Math.max(Math.abs(p[1]-c.x),Math.abs(p[2]-c.z)):null;
       return '<div class="finder-pick"><b>'+E(p?String(p[0]):finderPlayer)+'</b> <span class="xp-muted">'+(p?'combat '+(p[4]??'?')+' · '+p[1]+', '+p[2]+(d!=null?' · '+nf(d)+' tiles away':''):'not online')+'</span>'+(p?'<button class="xp-reset" data-finder-go="'+p[1]+','+p[2]+'" title="Move the camera there (2D)">Go</button><button class="xp-reset" data-lookup="'+E(String(p[0]))+'">Hiscores</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button></div>';}
     const r=finderRow();
     if(r){const tiles=spawnTiles(r),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,best=c?tiles.map(t=>({...t,d:Math.max(Math.abs(t.x-c.x),Math.abs(t.z-c.z))})).sort((a,b)=>a.d-b.d)[0]:null;
-      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+(thieveText(r[0])?'<small class="finder-tele">'+E(thieveText(r[0]))+'</small>':'')+'</div>';}
+      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+(thieveText(r[0])?'<small class="finder-tele">'+E(thieveText(r[0]))+'</small>':'')+(meleeHitText(r[0])?'<small class="finder-tele">'+E(meleeHitText(r[0]))+'</small>':'')+'</div>';}
     // While the NPC list loads, the players (from the roster, already here) still show.
     if(npcSpawns!==null&&!npcSpawns.length&&!playerMatches(finderQuery).length)return '<span class="xp-muted">Loading NPC spawns…</span>';
     const m=finderMatches(finderQuery),pm=playerMatches(finderQuery);
