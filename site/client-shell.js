@@ -725,12 +725,20 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const rows=marks.slice(-20).reverse().map(m=>{const i=marks.indexOf(m);return '<div class="mark-row"><span class="mark-swatch" style="background:'+E(m.c||MARK_COLOURS[0][0])+'"></span><button class="xp-reset" data-mark-go="'+i+'" title="Move the camera there (2D)">'+m.x+', '+m.z+(m.l?' · floor '+m.l:'')+'</button><button class="xp-reset" data-mark-del="'+i+'" title="Remove this marker" aria-label="Remove marker">✕</button></div>';}).join('');
     return '<div class="xp-box"><div class="xp-head"><span>Ground markers</span><span class="xp-muted">'+marks.length+' · shift+click the minimap</span></div><div class="xp-buttons"><button class="xp-reset" data-mark-here '+(p?'':'disabled')+'>Mark the account\'s tile</button><select data-mark-colour aria-label="Marker colour">'+colours+'</select>'+(marks.length?'<button class="xp-reset" data-mark-clear>Clear all</button>':'')+'</div>'+(rows?'<div class="mark-list">'+rows+'</div>':'')+'</div>';
   }
+  // Pickpocket (RuneLite's Thieving overlay, with the server's roll): client-assets/thieving.json (gen-thieving.ts) has
+  // [level, xp, low, high, stun ticks, stun damage] by NPC name. thieving.rs2 passes when floor(low*(99-L)/98) +
+  // floor(high*(L-1)/98) + 1 beats a roll of 0-255; L is the current Thieving level of the followed account.
+  let thieveData={};fetch(asset('thieving.json')).then(r=>r.ok?r.json():{}).then(j=>{thieveData=j||{};},()=>{});
+  function thieveText(name){const t=thieveData[name];if(!t)return '';const [lv,xp,lo,hi,stun,dmg]=t,b=typeof account==='function'?account():null,L=typeof curLevel==='function'?curLevel(b,'Thieving'):null;
+    if(!Number.isFinite(L))return 'Pickpocket: Thieving '+lv+' · '+nf(xp)+' XP';if(L<lv)return 'Pickpocket: Thieving '+lv+' needed (has '+L+')';
+    const l=Math.min(L,99),p=Math.min(Math.floor(lo*(99-l)/98)+Math.floor(hi*(l-1)/98)+1,256)/256;
+    return 'Pickpocket at Thieving '+L+': '+Math.round(p*100)+'% · '+nf(Math.round(p*xp))+' XP a try'+(p<1?' · a fail stuns '+stun+' ticks and hits '+dmg:'');}
   function finderList(){
     if(finderPlayer){const p=playerRow(),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,d=p&&c?Math.max(Math.abs(p[1]-c.x),Math.abs(p[2]-c.z)):null;
       return '<div class="finder-pick"><b>'+E(p?String(p[0]):finderPlayer)+'</b> <span class="xp-muted">'+(p?'combat '+(p[4]??'?')+' · '+p[1]+', '+p[2]+(d!=null?' · '+nf(d)+' tiles away':''):'not online')+'</span>'+(p?'<button class="xp-reset" data-finder-go="'+p[1]+','+p[2]+'" title="Move the camera there (2D)">Go</button><button class="xp-reset" data-lookup="'+E(String(p[0]))+'">Hiscores</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button></div>';}
     const r=finderRow();
     if(r){const tiles=spawnTiles(r),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,best=c?tiles.map(t=>({...t,d:Math.max(Math.abs(t.x-c.x),Math.abs(t.z-c.z))})).sort((a,b)=>a.d-b.d)[0]:null;
-      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+'</div>';}
+      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+(thieveText(r[0])?'<small class="finder-tele">'+E(thieveText(r[0]))+'</small>':'')+'</div>';}
     // While the NPC list loads, the players (from the roster, already here) still show.
     if(npcSpawns!==null&&!npcSpawns.length&&!playerMatches(finderQuery).length)return '<span class="xp-muted">Loading NPC spawns…</span>';
     const m=finderMatches(finderQuery),pm=playerMatches(finderQuery);
