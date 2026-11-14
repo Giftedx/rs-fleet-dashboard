@@ -823,7 +823,9 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     // A weapon with a magic attack bonus (a staff) and a combat spell the account can cast now (bestSpell: level, runes,
     // staff) casts it: the spell's max hit, 5 ticks a cast (player_magic.rs2 action_delay), and the roll (Magic + 9: magic's
     // style bonus of 1) x (magic attack + 64) against the NPC's (magic level + 9) x (magic defence + 64).
-    const spell=!ranged&&(wb?.[3]||0)>0&&typeof bestSpell==='function'?bestSpell(b):null,magic=!!spell;
+    // A staff, not any weapon with a magic bonus: every dagger has magic attack +1 (item-bonuses.json). Every magic weapon of
+    // the server has staff in its name (Staff, Magic staff, the battlestaves, the mystic staves, Iban's, the god staves).
+    const spell=!ranged&&(wb?.[3]||0)>0&&/staff/i.test(weapon||'')&&typeof bestSpell==='function'?bestSpell(b):null,magic=!!spell;
     const A=curLevel(b,'Attack'),St=curLevel(b,'Strength'),R=curLevel(b,'Ranged'),M=curLevel(b,'Magic');if(magic?!Number.isFinite(M):ranged?!Number.isFinite(R):(!Number.isFinite(A)||!Number.isFinite(St)))return '';
     const speed=magic?5:(weapon&&weaponSpeedData[weapon])||4,tickSec=((typeof S!=='undefined'&&S?.world?.tickMs)||600)/1000,max=magic?spell.max:ranged?maxHit(R,bon[11],0):maxHit(St,bon[10],0);if(!(max>0))return '';
     const hit=(At,D)=>At>D?1-(D+2)/(2*(At+1)):At/(2*(D+1)),loot=lootTotal(name);
