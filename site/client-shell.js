@@ -1003,15 +1003,24 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // does not count, and the next read starts a new "at most" count. The clock stops 10 s after the account's last state
   // read (b.at): a replayed snapshot (the hosted page between data files) does not count down to "safe". A teleport is a
   // move of more than 40 tiles from the last seen tile.
-  const aggroNow=(b,now)=>{const at=Number(b?.at);return Number.isFinite(at)&&at>0?Math.min(now,at+10e3):now;};
-  function aggroTrack(b,now){if(!b?.inWorld||!b.pos){if(b?.name)aggro.delete(b.name);return null;}now=aggroNow(b,now);const x=b.pos.x,z=b.pos.z,t=aggro.get(b.name),inside=c=>x>=c[0]&&x<c[0]+21&&z>=c[1]&&z<c[1]+21,c=[x-10,z-10];
-    if(!t){const n={zones:[c,c],since:now,first:true,last:[x,z]};aggro.set(b.name,n);return n;}
+  // The last read is the newer of the state file (b.at) and the live roster's sight of the account (b.live.seen,
+  // withLiveRoster in index.html), so a roster that keeps seeing the account keeps the clock going. A gap of more than
+  // 30 s between two reads (an old snapshot, then the roster) starts a new "at most" count: the unseen time can hold a
+  // move or a relog, so it does not count toward the 1,000 ticks.
+  const aggroSeen=b=>Math.max(Number(b?.at)||0,Number(b?.live?.seen)||0);
+  const aggroNow=(b,now)=>{const at=aggroSeen(b);return at>0?Math.min(now,at+10e3):now;};
+  // The tile goes with its read: the live roster's tile (b.live, server.ts or withLiveRoster) when its sight is the
+  // newer read, else the status file's b.pos.
+  const aggroPos=b=>{const l=b?.live;return l&&Number.isFinite(l.x)&&Number.isFinite(l.z)&&(Number(l.seen)||0)>=(Number(b.at)||0)?{x:l.x,z:l.z,level:l.level||0}:b?.pos;};
+  function aggroTrack(b,now){const p=aggroPos(b);if(!b?.inWorld||!p){if(b?.name)aggro.delete(b.name);return null;}now=aggroNow(b,now);const seen=aggroSeen(b),x=p.x,z=p.z,inside=c=>x>=c[0]&&x<c[0]+21&&z>=c[1]&&z<c[1]+21,c=[x-10,z-10];
+    let t=aggro.get(b.name);if(t&&seen>0&&t.seen>0&&seen-t.seen>30e3)t=null;if(t)t.seen=seen;
+    if(!t){const n={zones:[c,c],since:now,first:true,last:[x,z],seen};aggro.set(b.name,n);return n;}
     const jump=Math.max(Math.abs(x-t.last[0]),Math.abs(z-t.last[1]))>40;t.last=[x,z];
     if(inside(t.zones[0])||inside(t.zones[1]))return t;
     t.zones=[c,jump?c:t.zones[0]];t.since=now;t.first=false;return t;}
-  function aggroHunters(b){loadHunt();if(!b?.inWorld||!b.pos||!npcHunt)return [];const lv=b.pos.level||0,wild=typeof wildLevel==='function'&&wildLevel(b.pos)>0,cb=Number(b.combat)||0,by=new Map();
+  function aggroHunters(b){loadHunt();const pos=aggroPos(b);if(!b?.inWorld||!pos||!npcHunt)return [];const lv=pos.level||0,wild=typeof wildLevel==='function'&&wildLevel(pos)>0,cb=Number(b.combat)||0,by=new Map();
     for(const r of npcHunt){if(!(r[1]>=2||r[1]===1&&(wild||cb<=2*r[2])))continue;
-      for(let i=0;i+2<r[3].length;i+=3)if(r[3][i+2]===lv&&Math.max(Math.abs(r[3][i]-b.pos.x),Math.abs(r[3][i+1]-b.pos.z))<=12){by.set(r[0],by.get(r[0])||r[1]===3);break;}}
+      for(let i=0;i+2<r[3].length;i+=3)if(r[3][i+2]===lv&&Math.max(Math.abs(r[3][i]-pos.x),Math.abs(r[3][i+1]-pos.z))<=12){by.set(r[0],by.get(r[0])||r[1]===3);break;}}
     return [...by].map(([name,never])=>({name,never}));}
   function aggroText(b,now){const h=aggroHunters(b);if(!h.length)return null;const t=aggroTrack(b,now);if(!t)return null;now=aggroNow(b,now);const tick=Number(S?.world?.tickMs)||600,left=1000*tick-(now-t.since),names=h.map(x=>x.name).slice(0,6).join(', ');
     if(h.some(x=>x.never))return {text:'∞',title:'NPC aggression: '+names+(h.length===1?' hunts you here and never stops.':' hunt you here and never stop.'),red:true};
@@ -1045,6 +1054,17 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   function regenHpText(b,now){const r=regen.get(b?.name);if(!r||!b.hp||!(b.hp.max>b.hp.now))return '';const t=regenTime(r.heal,b.hp.max-b.hp.now,typeof aggroNow==='function'?aggroNow(b,now):now);
     return (t.most?' · full in at most ':' · next heal in '+regenClock(t.next)+' · full in ')+regenClock(t.ms);}
   function regenStatText(b,s,now){const r=regen.get(b?.name);if(!r)return '';const t=regenTime(s.currentLevel<s.level?r.up:r.down,Math.abs(s.currentLevel-s.level),typeof aggroNow==='function'?aggroNow(b,now):now);return ' · back to '+s.level+' in '+(t.most?'at most ':'')+regenClock(t.ms);}
+  // Prayer time left (RuneLite's Prayer plugin, with the server's drain, prayer.rs2 [timer,prayer_drain]): every 5 ticks
+  // a counter grows by 5 x the sum of the active prayers' drain effects (prayers.enum prayer_drain_effects: 12 for a
+  // protect prayer and the top three); each time it reaches the resistance, 60 + 2 x the prayer bonus (equip.rs2), one
+  // point goes. The prayers on are not reported, so the Prayer orb gives the time for two sets: one protect prayer, and
+  // a protect prayer with Ultimate Strength and Incredible Reflexes (36).
+  function prayerLasts(points,bonus,effect){const res=Math.max(60,60+2*bonus);let c=0,p=points,ticks=0;if(!(points>0)||!(effect>0))return 0;
+    while(p>0&&ticks<1e6){ticks+=5;c+=effect*5;if(c>=res){const n=Math.floor(c/res);c-=n*res;p-=n;}}return ticks;}
+  // The first protect prayer needs Prayer 37 (prayers.dbrow), so a lower base level shows no time.
+  function prayerText(b){const pr=(b?.skills||[]).find(s=>s?.name==='Prayer'),bon=typeof wornBonuses==='function'?wornBonuses(b):null;if(!pr||!(pr.currentLevel>0)||!(pr.level>=37)||!bon)return '';
+    const tick=Number(S?.world?.tickMs)||600,clock=ms=>Math.floor(ms/6e4)+':'+String(Math.floor(ms%6e4/1e3)).padStart(2,'0'),t=e=>clock(prayerLasts(pr.currentLevel,bon[12],e)*tick);
+    return ' · lasts (prayer bonus '+(bon[12]>=0?'+':'')+bon[12]+'): a protect prayer '+t(12)+' · with Ultimate Strength and Incredible Reflexes '+t(36);}
   function infoboxes(){
     const el=hud.querySelector('.game-infoboxes'),b=account();
     if(typeof aggroTrack==='function'){const now=Date.now();for(const x of S?.bots||[]){aggroTrack(x,now);regenTrack(x,now);}}
@@ -1561,7 +1581,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const b=account(),name=b?.name??null;
     if(name!==questAccount){questAccount=name;questDetail=null;}
     app.classList.toggle('public-view',!window.atlasOperator());if(body.firstElementChild?.hasAttribute('data-snapshot-loading'))renderSnapshotPlugin(selectedPlugin);syncNotifyControls();$('#client-more').hidden=!window.atlasOperator();hud.querySelector('.game-bank')?.refreshObservation?.();camUpdate();screens();minimap();xpDrops(b);overlay();chatFeed();idleNotifier(b);levelUps();deaths();moments();if(selectedPlugin==='xp')refreshXp();if(selectedPlugin==='boards'&&body.dataset.plugin==='boards'){const head=body.querySelector('.progress-head');if(head)put(head,boardSummary()+progressPanel());const rw=body.querySelector('.rivals-wrap');if(rw&&!rw.contains(document.activeElement))put(rw,rivalsPanel());refreshHiscoreAccount();}const data=body.querySelector('.info-data');if(data)put(data,infoData());if(selectedPlugin==='ge')refreshGe();if(selectedPlugin==='world'&&body.dataset.plugin==='world')refreshWorld();infoboxes();setText(title.querySelector('.connection'),$('#connection').textContent);focusPaint();warmPlaces();respawnSync();trackTrails();overlaySync();lootShots();welcomeCard();setText($('#chat-name'),(b?safeName(b.name):'Spectator')+':');
-    const orbBox=hud.querySelector('.game-orbs'),orbHtml=!b?'':[['hp','Hitpoints',b.hp?.now,b.hp?.max],['prayer','Prayer',level('Prayer')?.currentLevel,level('Prayer')?.level],['run','Run energy',b.runEnergy,100]].filter(o=>o[2]!=null).map(([id,label,value,max])=>`<div class="game-orb orb-${id}" title="${label}: ${Math.floor(value)} / ${max}${id==='hp'&&typeof regenHpText==='function'?regenHpText(b,Date.now()):''}"><canvas class="orb-art" width="60" height="34" data-orb="${id}" data-frac="${value!=null&&max?Math.max(0,Math.min(1,value/max)):0}"></canvas><span class="orb-num" style="color:${orbColour(value,max)}">${Math.floor(value)}</span></div>`).join('');if(orbBox._h!==orbHtml){orbBox._h=orbHtml;orbBox.innerHTML=orbHtml;orbBox.querySelectorAll('canvas').forEach(drawOrb);}if(!(selectedTab==='settings'&&$('#game-panel').contains(document.activeElement)))gamePanel();}
+    const orbBox=hud.querySelector('.game-orbs'),orbHtml=!b?'':[['hp','Hitpoints',b.hp?.now,b.hp?.max],['prayer','Prayer',level('Prayer')?.currentLevel,level('Prayer')?.level],['run','Run energy',b.runEnergy,100]].filter(o=>o[2]!=null).map(([id,label,value,max])=>`<div class="game-orb orb-${id}" title="${label}: ${Math.floor(value)} / ${max}${id==='hp'&&typeof regenHpText==='function'?regenHpText(b,Date.now()):''}${id==='prayer'&&typeof prayerText==='function'?E(prayerText(b)):''}"><canvas class="orb-art" width="60" height="34" data-orb="${id}" data-frac="${value!=null&&max?Math.max(0,Math.min(1,value/max)):0}"></canvas><span class="orb-num" style="color:${orbColour(value,max)}">${Math.floor(value)}</span></div>`).join('');if(orbBox._h!==orbHtml){orbBox._h=orbHtml;orbBox.innerHTML=orbHtml;orbBox.querySelectorAll('canvas').forEach(drawOrb);}if(!(selectedTab==='settings'&&$('#game-panel').contains(document.activeElement)))gamePanel();}
   const previousRender=render;render=function(){previousRender();refresh();};
   const previousDrawMap=drawMap;drawMap=function(){previousDrawMap();minimap();};
   const previousPick=pick;pick=function(name){wallEnd(false);if(!touring)tourSet(false);const from=focusTarget(),b=S?.bots?.find(b=>b.name===name);previousPick(name);cam.user=false;if(mode==='2d'&&window.atlasFreeCamera&&b?.pos)window.atlasCamera.goto(b.pos.x,b.pos.z);focusMoved(from,name);refresh();};
