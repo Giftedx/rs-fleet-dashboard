@@ -990,8 +990,34 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
       .filter(p=>p.dist<=30&&!p.ours&&canAttack({pos:b.pos,combat:b.combat},p)).sort((x,y)=>x.dist-y.dist);
     return {wild:wildLevel(b.pos),risk,kept,keptValue,lost:Math.max(0,risk-keptValue),threats};
   }
+  // NPC aggression timer (RuneLite's NPC Aggression Timer, with the server's rule, Player.ts zonesAfk): a player who stays
+  // in two 21 x 21 areas for 1,000 ticks is no longer hunted. A step out of both areas makes a new area at the player
+  // (the old one is kept as the second) and starts the count again. A teleport makes both areas new: a move of more
+  // than 40 tiles between two state reads counts as one. The page sees an account only from its first state read, so
+  // the first count is the most time left. aggroHunters: the NPC names whose hunting variant spawns within 12 tiles on
+  // the account's plane and hunts it (client-assets/npc-hunt.json, gen-npc-defence.ts: [name, kind, vislevel, tiles];
+  // kind 1 up to combat 2 x vislevel outside the Wilderness, 2 all, 3 never stops). The file loads with the first box.
+  const aggro=new Map();let npcHunt=null;
+  const loadHunt=()=>{if(npcHunt===null&&typeof fetch==='function'&&typeof asset==='function'){npcHunt=[];fetch(asset('npc-hunt.json')).then(r=>r.ok?r.json():[]).then(j=>{if(Array.isArray(j))npcHunt=j;},()=>{});}};
+  // An account out of the world loses its record: the server keeps its count in the save (Player.ts), so offline time
+  // does not count, and the next read starts a new "at most" count.
+  function aggroTrack(b,now){if(!b?.inWorld||!b.pos){if(b?.name)aggro.delete(b.name);return null;}const x=b.pos.x,z=b.pos.z,t=aggro.get(b.name),inside=c=>x>=c[0]&&x<c[0]+21&&z>=c[1]&&z<c[1]+21,c=[x-10,z-10];
+    if(!t){const n={zones:[c,c],since:now,first:true};aggro.set(b.name,n);return n;}
+    if(inside(t.zones[0])||inside(t.zones[1]))return t;
+    const jump=Math.max(Math.abs(c[0]-t.zones[0][0]),Math.abs(c[1]-t.zones[0][1]))>40;
+    t.zones=[c,jump?c:t.zones[0]];t.since=now;t.first=false;return t;}
+  function aggroHunters(b){loadHunt();if(!b?.inWorld||!b.pos||!npcHunt)return [];const lv=b.pos.level||0,wild=typeof wildLevel==='function'&&wildLevel(b.pos)>0,cb=Number(b.combat)||0,by=new Map();
+    for(const r of npcHunt){if(!(r[1]>=2||r[1]===1&&(wild||cb<=2*r[2])))continue;
+      for(let i=0;i+2<r[3].length;i+=3)if(r[3][i+2]===lv&&Math.max(Math.abs(r[3][i]-b.pos.x),Math.abs(r[3][i+1]-b.pos.z))<=12){by.set(r[0],by.get(r[0])||r[1]===3);break;}}
+    return [...by].map(([name,never])=>({name,never}));}
+  function aggroText(b,now){const h=aggroHunters(b);if(!h.length)return null;const t=aggroTrack(b,now);if(!t)return null;const tick=Number(S?.world?.tickMs)||600,left=1000*tick-(now-t.since),names=h.map(x=>x.name).slice(0,6).join(', ');
+    if(h.some(x=>x.never))return {text:'∞',title:'NPC aggression: '+names+(h.length===1?' hunts you here and never stops.':' hunt you here and never stop.'),red:true};
+    const mmss=ms=>Math.floor(ms/6e4)+':'+String(Math.floor(ms%6e4/1e3)).padStart(2,'0');
+    return left<=0?{text:'safe',title:'NPC aggression: '+names+(h.length===1?' no longer hunts':' no longer hunt')+' you here (1,000 ticks in these areas).',red:false}
+      :{text:mmss(left),title:'NPC aggression: '+names+(h.length===1?' hunts':' hunt')+' you here for '+(t.first?'at most ':'')+mmss(left)+' more. The hunt stops after 1,000 ticks ('+mmss(1000*tick)+') in two 21 x 21 areas. A step out of both starts the count again.',red:true};}
   function infoboxes(){
     const el=hud.querySelector('.game-infoboxes'),b=account();
+    if(typeof aggroTrack==='function'){const now=Date.now();for(const x of S?.bots||[])aggroTrack(x,now);}
     const set=html=>{if(el._h!==html){el._h=html;el.innerHTML=html;}};
     const box=(img,text,title,name)=>`<button class="infobox" title="${E(title)}" ${name?'data-xp-focus="'+E(name)+'"':''}><img src="${img}" alt=""><span>${E(text)}</span></button>`;
     const short=ms=>ms==null?'':ms<3600e3?Math.floor(ms/6e4)+'m':Math.floor(ms/36e5)+'h'+String(Math.floor(ms%36e5/6e4)).padStart(2,'0');
@@ -1003,6 +1029,8 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const foodBox=b=>{const f=typeof foodOf==='function'?foodOf(b):{total:0};if(!f.total)return '';const top=f.items[0],hp=f.items.reduce((n,i)=>n+(Number(String(itemStats[i.name]||'').match(/heals (\d+)/)?.[1])||0)*i.count,0);return `<button class="infobox${f.total<=2?' boost-down':''}" title="${E('Food: '+f.items.map(i=>i.name+' × '+i.count).join(', ')+(hp?' · heals '+hp+' hitpoints in all':''))}">${icon(top.name,24)}<span>${f.total}</span></button>`;};
     const ammoBox=b=>{const a=b.equipment?.find(e=>e.slot===13&&e.count>0);return a?`<button class="infobox ammo" title="${E(a.name)} × ${E(a.count)}">${icon(a.name,24)}<span>${a.count>=1e5?Math.floor(a.count/1e3)+'K':E(a.count)}</span></button>`:'';};
     if(b){set((b.uptime?box(asset('rl-activity.png'),short(b.uptime),'Session: '+dur(b.uptime)):'')+(b.goalSkill&&!(b.goalNow>=b.goalLevel)?box(asset('skill-'+skillFile(b.goalSkill)+'.png'),b.eta||String(b.goalNow??''),b.goalSkill+' '+(b.goalNow??'?')+' → '+b.goalLevel+(b.eta?' in '+b.eta:'')):'')+(b.death?box(asset('skill-hitpoints.png'),'died','Died '+age(b.death.at)+' ago: '+b.death.text+' · click for the recap').replace('class="infobox"','class="infobox boost-down" data-death="'+E(b.name)+'"'):'')+foodBox(b)+ammoBox(b)+nearBox(b)
+      // NPC aggression timer: the time left until the NPCs that spawn here stop hunting the account.
+      +(()=>{if(typeof aggroText!=='function')return '';const a=aggroText(b,Date.now());return a?box(asset('skill-attack.png'),a.text,a.title).replace('class="infobox"','class="infobox'+(a.red?' boost-down':'')+'"'):'';})()
       // Item charges: teleport jewellery on its last charge, or used up (an amulet of glory with no charges has no number).
       +(()=>{const l=[...(b.inventory||[]),...(b.equipment||[])].filter(i=>i&&/^(Amulet of glory|Ring of dueling|Games necklace)(\(1\))?$/.test(i.name)&&i.name!=='Ring of dueling'&&i.name!=='Games necklace');return l.length?`<button class="infobox boost-down" title="${E('Last charge: '+l.map(i=>i.name).join(', '))}">${icon(l[0].name,24)}<span>${l.length}</span></button>`:'';})()
       // PvP Tools: in the Wilderness, a red count of the players who can attack the account now.
