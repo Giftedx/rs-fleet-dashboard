@@ -815,15 +815,19 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   let weaponSpeedData={};if(typeof asset==='function'&&typeof fetch==='function')fetch(asset('weapon-speed.json')).then(r=>r.ok?r.json():{}).then(j=>{weaponSpeedData=j||{};},()=>{});
   function lootTotal(name){const list=npcLootData[name];if(!list?.length||typeof price!=='function')return 0;let t=0;for(const [item,e] of list){const p=price(item);if(p)t+=p.value*e;}return t;}
   function hourText(name){let list=(npcDefData[name]||[]).filter(v=>v.length>14&&v[13]>0);if(list.some(v=>v[14]>=1000))list=list.filter(v=>v[14]>=1000);const b=typeof account==='function'?account():null;
-    if(!list.length||typeof wornBonuses!=='function'||typeof maxHit!=='function')return '';const bon=wornBonuses(b),A=curLevel(b,'Attack'),St=curLevel(b,'Strength');if(!bon||!Number.isFinite(A)||!Number.isFinite(St))return '';
-    // A ranged weapon (a range attack bonus, as equipStats tells it) gets no melee estimate.
-    const weapon=(b.equipment||[]).find(e=>e?.slot===3)?.name;if(weapon&&typeof itemBonusData!=='undefined'&&(itemBonusData?.[weapon]?.[4]||0)>0)return '';
-    const speed=(weapon&&weaponSpeedData[weapon])||4,tickSec=((typeof S!=='undefined'&&S?.world?.tickMs)||600)/1000,max=maxHit(St,bon[10],0);if(!(max>0))return '';
+    if(!list.length||typeof wornBonuses!=='function'||typeof maxHit!=='function')return '';const bon=wornBonuses(b);if(!bon)return '';
+    // A ranged weapon (a range attack bonus, as equipStats tells it) rolls ranged: the max hit is the current Ranged with
+    // the worn ranged strength (ammo counts), and its roll (Ranged + 8) x (range attack + 64) meets the NPC's (defence + 9)
+    // x (range defence + 64). Other weapons roll melee, the best of stab, slash and crush.
+    const weapon=(b.equipment||[]).find(e=>e?.slot===3)?.name,ranged=!!weapon&&typeof itemBonusData!=='undefined'&&(itemBonusData?.[weapon]?.[4]||0)>0;
+    const A=curLevel(b,'Attack'),St=curLevel(b,'Strength'),R=curLevel(b,'Ranged');if(ranged?!Number.isFinite(R):(!Number.isFinite(A)||!Number.isFinite(St)))return '';
+    const speed=(weapon&&weaponSpeedData[weapon])||4,tickSec=((typeof S!=='undefined'&&S?.world?.tickMs)||600)/1000,max=ranged?maxHit(R,bon[11],0):maxHit(St,bon[10],0);if(!(max>0))return '';
     const hit=(At,D)=>At>D?1-(D+2)/(2*(At+1)):At/(2*(D+1)),loot=lootTotal(name);
+    const chance=v=>ranged?hit((R+8)*(bon[4]+64),(v[1]+9)*(v[7]+64)):Math.max(...[0,1,2].map(i=>hit((A+8)*(bon[i]+64),(v[1]+9)*(v[3+i]+64))));
     // Each variant's kill rate times its own XP a kill: the extremes of two lists belong to different variants.
-    const rates=list.map(v=>{const p=Math.max(...[0,1,2].map(i=>hit((A+8)*(bon[i]+64),(v[1]+9)*(v[3+i]+64)))),dmg=p*max/2,k=dmg>0?3600/((v[13]/dmg)*speed*tickSec):0;return {k,xp:k*v[13]*100*v[14]/1000};}).filter(r=>r.k>0);
+    const rates=list.map(v=>{const dmg=chance(v)*max/2,k=dmg>0?3600/((v[13]/dmg)*speed*tickSec):0;return {k,xp:k*v[13]*100*v[14]/1000};}).filter(r=>r.k>0);
     if(!rates.length)return '';const ks=rates.map(r=>r.k),xs=rates.map(r=>r.xp),lo=Math.min(...ks),hi=Math.max(...ks),span=(a,z)=>Math.round(a)===Math.round(z)?nf(Math.round(a)):nf(Math.round(a))+'–'+nf(Math.round(z));
-    return 'About '+span(lo,hi)+' kills an hour (max hit '+max+', speed '+speed+') · '+span(Math.min(...xs),Math.max(...xs))+' XP/h in one style'+(loot>0?' · '+span(lo*loot,hi*loot)+' gp/h':'');}
+    return 'About '+span(lo,hi)+' kills an hour ('+(ranged?'ranged, ':'')+'max hit '+max+', speed '+speed+') · '+span(Math.min(...xs),Math.max(...xs))+' XP/h in one style'+(loot>0?' · '+span(lo*loot,hi*loot)+' gp/h':'');}
   function finderList(){
     if(finderPlayer){const p=playerRow(),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,d=p&&c?Math.max(Math.abs(p[1]-c.x),Math.abs(p[2]-c.z)):null;
       return '<div class="finder-pick"><b>'+E(p?String(p[0]):finderPlayer)+'</b> <span class="xp-muted">'+(p?'combat '+(p[4]??'?')+' · '+p[1]+', '+p[2]+(d!=null?' · '+nf(d)+' tiles away':''):'not online')+'</span>'+(p?'<button class="xp-reset" data-finder-go="'+p[1]+','+p[2]+'" title="Move the camera there (2D)">Go</button><button class="xp-reset" data-lookup="'+E(String(p[0]))+'">Hiscores</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button></div>';}
