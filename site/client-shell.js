@@ -144,7 +144,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     if(!spellbookData?.combat?.length||!Array.isArray(b?.inventory))return null;
     const mg=curLevel(b,'Magic');if(!Number.isFinite(mg))return null;
     const worn=new Set((b.equipment||[]).map(e=>e?.name));
-    let best=null;for(const [name,lv,max,runes,staff] of spellbookData.combat){if(lv>mg||(staff&&!worn.has(staff)))continue;const casts=runeCasts(b,runes);if(casts>0&&Number.isFinite(casts)&&(!best||max>best.max))best={name,max,casts};}
+    let best=null;for(const [name,lv,max,runes,staff,exp] of spellbookData.combat){if(lv>mg||(staff&&!worn.has(staff)))continue;const casts=runeCasts(b,runes);if(casts>0&&Number.isFinite(casts)&&(!best||max>best.max))best={name,max,casts,xp:(exp||0)*2.5};}
     return best;
   }
   function teleCasts(b){
@@ -819,15 +819,23 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     // A ranged weapon (a range attack bonus, as equipStats tells it) rolls ranged: the max hit is the current Ranged with
     // the worn ranged strength (ammo counts), and its roll (Ranged + 8) x (range attack + 64) meets the NPC's (defence + 9)
     // x (range defence + 64). Other weapons roll melee, the best of stab, slash and crush.
-    const weapon=(b.equipment||[]).find(e=>e?.slot===3)?.name,ranged=!!weapon&&typeof itemBonusData!=='undefined'&&(itemBonusData?.[weapon]?.[4]||0)>0;
-    const A=curLevel(b,'Attack'),St=curLevel(b,'Strength'),R=curLevel(b,'Ranged');if(ranged?!Number.isFinite(R):(!Number.isFinite(A)||!Number.isFinite(St)))return '';
-    const speed=(weapon&&weaponSpeedData[weapon])||4,tickSec=((typeof S!=='undefined'&&S?.world?.tickMs)||600)/1000,max=ranged?maxHit(R,bon[11],0):maxHit(St,bon[10],0);if(!(max>0))return '';
+    const weapon=(b.equipment||[]).find(e=>e?.slot===3)?.name,wb=weapon&&typeof itemBonusData!=='undefined'?itemBonusData?.[weapon]:null,ranged=(wb?.[4]||0)>0;
+    // A weapon with a magic attack bonus (a staff) and a combat spell the account can cast now (bestSpell: level, runes,
+    // staff) casts it: the spell's max hit, 5 ticks a cast (player_magic.rs2 action_delay), and the roll (Magic + 9: magic's
+    // style bonus of 1) x (magic attack + 64) against the NPC's (magic level + 9) x (magic defence + 64).
+    const spell=!ranged&&(wb?.[3]||0)>0&&typeof bestSpell==='function'?bestSpell(b):null,magic=!!spell;
+    const A=curLevel(b,'Attack'),St=curLevel(b,'Strength'),R=curLevel(b,'Ranged'),M=curLevel(b,'Magic');if(magic?!Number.isFinite(M):ranged?!Number.isFinite(R):(!Number.isFinite(A)||!Number.isFinite(St)))return '';
+    const speed=magic?5:(weapon&&weaponSpeedData[weapon])||4,tickSec=((typeof S!=='undefined'&&S?.world?.tickMs)||600)/1000,max=magic?spell.max:ranged?maxHit(R,bon[11],0):maxHit(St,bon[10],0);if(!(max>0))return '';
     const hit=(At,D)=>At>D?1-(D+2)/(2*(At+1)):At/(2*(D+1)),loot=lootTotal(name);
-    const chance=v=>ranged?hit((R+8)*(bon[4]+64),(v[1]+9)*(v[7]+64)):Math.max(...[0,1,2].map(i=>hit((A+8)*(bon[i]+64),(v[1]+9)*(v[3+i]+64))));
+    const chance=v=>magic?hit((M+9)*(bon[3]+64),(v[2]+9)*(v[6]+64)):ranged?hit((R+8)*(bon[4]+64),(v[1]+9)*(v[7]+64)):Math.max(...[0,1,2].map(i=>hit((A+8)*(bon[i]+64),(v[1]+9)*(v[3+i]+64))));
     // Each variant's kill rate times its own XP a kill: the extremes of two lists belong to different variants.
-    const rates=list.map(v=>{const dmg=chance(v)*max/2,k=dmg>0?3600/((v[13]/dmg)*speed*tickSec):0;return {k,xp:k*v[13]*100*v[14]/1000};}).filter(r=>r.k>0);
+    // Magic XP: the spell's cast XP on every cast (pvm_spell_cast, hit or splash) plus 2 XP a damage point (combat.rs2,
+    // style_magic_normal: 20 tenths) x the XP rate, i.e. 50, times the NPC's multiplier / 1000. Melee and ranged: 100 a
+    // damage point in one style.
+    const castsPerHour=3600/(speed*tickSec);
+    const rates=list.map(v=>{const dmg=chance(v)*max/2,k=dmg>0?3600/((v[13]/dmg)*speed*tickSec):0;return {k,xp:magic?castsPerHour*spell.xp+k*v[13]*50*v[14]/1000:k*v[13]*100*v[14]/1000};}).filter(r=>r.k>0);
     if(!rates.length)return '';const ks=rates.map(r=>r.k),xs=rates.map(r=>r.xp),lo=Math.min(...ks),hi=Math.max(...ks),span=(a,z)=>Math.round(a)===Math.round(z)?nf(Math.round(a)):nf(Math.round(a))+'–'+nf(Math.round(z));
-    return 'About '+span(lo,hi)+' kills an hour ('+(ranged?'ranged, ':'')+'max hit '+max+', speed '+speed+') · '+span(Math.min(...xs),Math.max(...xs))+' XP/h in one style'+(loot>0?' · '+span(lo*loot,hi*loot)+' gp/h':'');}
+    return 'About '+span(lo,hi)+' kills an hour ('+(magic?'magic, '+spell.name+', ':ranged?'ranged, ':'')+'max hit '+max+', speed '+speed+') · '+span(Math.min(...xs),Math.max(...xs))+' XP/h '+(magic?'in Magic':'in one style')+(loot>0?' · '+span(lo*loot,hi*loot)+' gp/h':'');}
   function finderList(){
     if(finderPlayer){const p=playerRow(),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,d=p&&c?Math.max(Math.abs(p[1]-c.x),Math.abs(p[2]-c.z)):null;
       return '<div class="finder-pick"><b>'+E(p?String(p[0]):finderPlayer)+'</b> <span class="xp-muted">'+(p?'combat '+(p[4]??'?')+' · '+p[1]+', '+p[2]+(d!=null?' · '+nf(d)+' tiles away':''):'not online')+'</span>'+(p?'<button class="xp-reset" data-finder-go="'+p[1]+','+p[2]+'" title="Move the camera there (2D)">Go</button><button class="xp-reset" data-lookup="'+E(String(p[0]))+'">Hiscores</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button></div>';}
