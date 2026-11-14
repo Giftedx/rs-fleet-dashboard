@@ -788,11 +788,13 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // The XP of a kill (combat.rs2 give_combat_experience): each damage point gives 4 XP to a one-style skill and 1.33 to
   // Hitpoints, in tenths times the NPC's multiplier / 1000, and the server's XP rate (25) on top: a kill of H hitpoints is
   // H x 100 x multiplier / 1000 in one style and about H x 33.25 x multiplier / 1000 Hitpoints. The kills to the next
-  // Hitpoints level follow, as every style trains it.
+  // Hitpoints level follow, as every style trains it. The respawn time is the respawn rate in ticks of the
+  // live server's length (S.world.tickMs, as respawnRows; 600 ms when it is not reported: the demo server runs 400).
   // A name that also has normal variants leaves out its random-event ones (multiplier under 1000: the event Zombies).
   function killXpText(name){let list=(npcDefData[name]||[]).filter(v=>v.length>14&&v[13]>0);if(list.some(v=>v[14]>=1000))list=list.filter(v=>v[14]>=1000);if(!list.length)return '';
     const one=list.map(v=>Math.round(v[13]*100*v[14]/1000)),hp=list.map(v=>v[13]*33.25*v[14]/1000),span=a=>{const lo=Math.min(...a),hi=Math.max(...a);return lo===hi?nf(lo):nf(lo)+'–'+nf(hi);};
     let text='A kill: '+span(one)+' XP in one style + about '+span(hp.map(Math.round))+' Hitpoints';
+    const tickSec=((typeof S!=='undefined'&&S?.world?.tickMs)||600)/1000,respawn=list.filter(v=>v.length>15&&v[15]>0).map(v=>Math.round(v[15]*tickSec));if(respawn.length)text+=' · respawns in '+span(respawn)+' s';
     const b=typeof account==='function'?account():null,s=(b?.skills||[]).find(x=>x.name==='Hitpoints'),X=window.atlasXp;
     if(s?.xp!=null&&X){const lv=X.levelForXp(s.xp);if(lv<99){const left=X.xpForLevel(lv+1)-s.xp,most=Math.max(...hp);if(most>0){const k=Math.ceil(left/most);text+=' · '+nf(k)+(k===1?' kill':' kills')+' to Hitpoints '+(lv+1);}}}
     return text;}
