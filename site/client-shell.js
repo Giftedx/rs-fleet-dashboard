@@ -378,14 +378,15 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     const X=window.atlasXp,acts=skillActions?.[String(skill).toLowerCase()];if(!X||!acts?.length||xp==null)return null;
     const lvl=X.levelForXp(xp),left=lvl>=99?0:Math.max(0,X.xpForLevel(lvl+1)-xp);
     const best=acts.filter(a=>a[1]<=lvl&&a[2]>0).sort((a,b)=>b[2]-a[2])[0]||null,next=acts.filter(a=>a[1]>lvl).sort((a,b)=>a[1]-b[1]||b[2]-a[2]).slice(0,3);
-    return {best:best&&left?{name:best[0],count:Math.ceil(left/best[2])}:null,next:next.map(a=>({name:a[0],level:a[1]}))};
+    return {best:best&&left?{name:best[0],count:Math.ceil(left/best[2]),item:best[4]?.[0]||best[0]}:null,next:next.map(a=>({name:a[0],level:a[1]}))};
   }
   // Banked XP (RuneLite's Banked Experience): the XP that the bank holds for a skill. Each bank item that is the only
   // kind of input of an action of the skill (a bone buried, a log burnt, a raw fish cooked, 3 dragon leathers to a body)
   // counts at the action the account can do now with the most XP per item, in whole actions. Items match by id (each
   // action's last field), as the four dragon leathers share one name. An action whose input is its own output (a bow named as its unstrung form)
-  // does not count. The level is where the account's XP plus the banked XP reaches.
-  function bankedXp(b,skill){const acts=skillActions?.[String(skill).toLowerCase()],X=window.atlasXp;if(!acts||!Array.isArray(b?.bank)||!X)return null;
+  // does not count. The level is where the account's XP plus the banked XP reaches. Fishing has none: its input is the
+  // bait, and a feather is no fish until it is caught.
+  function bankedXp(b,skill){const acts=skillActions?.[String(skill).toLowerCase()],X=window.atlasXp;if(!acts||!Array.isArray(b?.bank)||!X||/^fishing$/i.test(String(skill)))return null;
     const s=(b.skills||[]).find(x=>x.name.toLowerCase()===String(skill).toLowerCase()),lvl=s?.xp!=null?X.levelForXp(s.xp):(s?.level??1),best=new Map();
     for(const a of acts){const ids=a[5]||[],id=ids[0];if(!id||!ids.every(x=>x===id)||a[1]>lvl||!(a[2]>0)||a[4].includes(a[3][0]))continue;const k=ids.length,cur=best.get(id);if(!cur||a[2]/k>cur.xp/cur.k)best.set(id,{k,xp:a[2]});}
     let xp=0,items=0;for(const it of b.bank){const v=it&&best.get(it.baseId??it.id);if(v){const n=Math.floor((it.count||1)/v.k);xp+=n*v.xp;items+=n*v.k;}}
@@ -410,6 +411,8 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // (gen-gather-chance.ts) has each tree's [low, high] for each axe and each rock's [low, high], by the log or ore.
   // woodcut.rs2 and mining.rs2 roll stat_random: floor(low*(99-L)/98) + floor(high*(L-1)/98) + 1 beats a roll of 0-255.
   // A tree counts the best axe the account holds or wears; a pickaxe changes how often a rock is tried, not the roll.
+  // Fish have one [low, high] each (fishing.struct). The Skills tab tooltip's To level line and the Best now line show it,
+  // for Fishing, Mining and Woodcutting only: Firemaking's logs are its input, not a catch.
   let gatherData={};if(typeof asset==='function'&&typeof fetch==='function')fetch(asset('gather-chance.json')).then(r=>r.ok?r.json():{}).then(j=>{gatherData=j||{};},()=>{});
   // The roll uses the current level (a boost or a drain counts), else the level from the XP.
   function gatherText(b,item,lvl,skill){const g=gatherData[item],cur=skill&&typeof curLevel==='function'?curLevel(b,skill):null;if(Number.isFinite(cur))lvl=cur;if(!g||!Number.isFinite(lvl))return '';
@@ -1192,7 +1195,7 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
   // Skills tab tooltip (OSRS): XP, next level at, remaining.
   hud.addEventListener('mouseover',e=>{const sk=e.target.closest('[data-skill]');const tip=hud.querySelector('.game-tip');if(!sk){tip.hidden=true;return;}const s=level(sk.dataset.skill),X=window.atlasXp;if(!s||!X){tip.hidden=true;return;}const lvl=Math.min(99,s.level),next=X.xpForLevel(Math.min(99,lvl+1));
     if(s.xp==null){tip.innerHTML=`<div>${E(sk.dataset.skill)} level <b>${s.level}</b></div><div>XP is not reported for this side.</div>`;}else tip.innerHTML=`<div>${E(sk.dataset.skill)} XP: <b>${nf(s.xp)}</b></div>`+(lvl<99?`<div>Next level at: <b>${nf(next)}</b></div><div>Remaining XP: <b>${nf(Math.max(0,next-s.xp))}</b></div>`:X.virtualLevel(s.xp)>99?`<div>Virtual level: <b>${X.virtualLevel(s.xp)}</b></div>`:'');
-    {const g=s.xp!=null?skillGuide(sk.dataset.skill,s.xp):null;if(g){if(g.best)tip.innerHTML+=`<div>To level: <b>${nf(g.best.count)}</b> × ${E(g.best.name)}</div>`;if(g.next.length)tip.innerHTML+=`<div>Unlocks: ${g.next.map(n=>E(n.name)+' ('+n.level+')').join(', ')}</div>`;}
+    {const g=s.xp!=null?skillGuide(sk.dataset.skill,s.xp):null;if(g){if(g.best){const ch=typeof gatherText==='function'&&/^(fishing|mining|woodcutting)$/i.test(sk.dataset.skill)?gatherText(account(),g.best.item,lvl,sk.dataset.skill):'';tip.innerHTML+=`<div>To level: <b>${nf(g.best.count)}</b> × ${E(g.best.name)}${ch?' · '+E(ch):''}</div>`;}if(g.next.length)tip.innerHTML+=`<div>Unlocks: ${g.next.map(n=>E(n.name)+' ('+n.level+')').join(', ')}</div>`;}
      const bx=typeof bankedXp==='function'?bankedXp(account(),sk.dataset.skill):null;if(bx)tip.innerHTML+=`<div>Banked: <b>+${nf(bx.xp)}</b> XP from ${nf(bx.items)} items${bx.level&&bx.level>lvl?' → level '+bx.level:''}</div>`;}
     const r=sk.getBoundingClientRect(),h=hud.getBoundingClientRect();tip.hidden=false;tip.style.left=Math.max(0,r.left-h.left-tip.offsetWidth-4)+'px';tip.style.top=(r.top-h.top)+'px';});
   hud.addEventListener('mouseout',e=>{if(e.target.closest('[data-skill]')&&!e.relatedTarget?.closest?.('[data-skill]'))hud.querySelector('.game-tip').hidden=true;});
