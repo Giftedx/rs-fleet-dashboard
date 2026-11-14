@@ -777,12 +777,20 @@ const skills=['Attack','Hitpoints','Mining','Strength','Agility','Smithing','Def
     if(bon[4]>0&&Number.isFinite(R))extra.push('ranged '+pct(v=>hit((R+8)*(bon[4]+64),(v[1]+9)*(v[7]+64))));
     if(bon[3]>0&&Number.isFinite(M))extra.push('magic '+pct(v=>hit((M+9)*(bon[3]+64),(v[2]+9)*(v[6]+64))));
     return 'Melee hit at Attack '+L+': '+(lo===hi?lo+'%':lo+'–'+hi+'%')+' with '+st.join(' or ')+(extra.length?' · '+extra.join(' · '):'');}
+  // Its melee against the account (npc_combat_melee.rs2): max hit floor(((strength + 9) x (strength bonus + 64) + 320) /
+  // 640), and its attack roll (attack + 9) x (attack bonus + 64) against the account's (current Defence + 8) x (worn
+  // defence bonus of the NPC's damage type + 64). An NPC with another damage type (ranged, magic) shows nothing.
+  function npcHitsText(name){const list=(npcDefData[name]||[]).filter(v=>v.length>12&&v[12]>=0),b=typeof account==='function'?account():null;if(!list.length||typeof wornBonuses!=='function')return '';
+    const bon=wornBonuses(b),D=typeof curLevel==='function'?curLevel(b,'Defence'):null;if(!bon||!Number.isFinite(D))return '';
+    const hit=(A,Dr)=>A>Dr?1-(Dr+2)/(2*(A+1)):A/(2*(Dr+1)),span=a=>{const lo=Math.min(...a),hi=Math.max(...a);return lo===hi?String(lo):lo+'–'+hi;};
+    const max=list.map(v=>Math.floor(((v[9]+9)*(v[11]+64)+320)/640)),p=list.map(v=>Math.round(hit((v[8]+9)*(v[10]+64),(D+8)*(bon[5+v[12]]+64))*100));
+    return 'It hits up to '+span(max)+' · lands '+span(p)+'% on your Defence '+D;}
   function finderList(){
     if(finderPlayer){const p=playerRow(),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,d=p&&c?Math.max(Math.abs(p[1]-c.x),Math.abs(p[2]-c.z)):null;
       return '<div class="finder-pick"><b>'+E(p?String(p[0]):finderPlayer)+'</b> <span class="xp-muted">'+(p?'combat '+(p[4]??'?')+' · '+p[1]+', '+p[2]+(d!=null?' · '+nf(d)+' tiles away':''):'not online')+'</span>'+(p?'<button class="xp-reset" data-finder-go="'+p[1]+','+p[2]+'" title="Move the camera there (2D)">Go</button><button class="xp-reset" data-lookup="'+E(String(p[0]))+'">Hiscores</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button></div>';}
     const r=finderRow();
     if(r){const tiles=spawnTiles(r),c=miniView.PX?{x:miniView.cx,z:miniView.cz}:null,best=c?tiles.map(t=>({...t,d:Math.max(Math.abs(t.x-c.x),Math.abs(t.z-c.z))})).sort((a,b)=>a.d-b.d)[0]:null;
-      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+(thieveText(r[0])?'<small class="finder-tele">'+E(thieveText(r[0]))+'</small>':'')+(meleeHitText(r[0])?'<small class="finder-tele">'+E(meleeHitText(r[0]))+'</small>':'')+'</div>';}
+      return '<div class="finder-pick"><b>'+E(r[0])+'</b> <span class="xp-muted">'+combatText(r)+' · '+tiles.length+(tiles.length===1?' spawn':' spawns')+'</span>'+(best?'<button class="xp-reset" data-finder-go="'+best.x+','+best.z+'" title="Move the camera there (2D)">Nearest: '+best.x+', '+best.z+' · '+nf(best.d)+' tiles</button>':'')+'<button class="xp-reset" data-finder-clear>Clear</button>'+(teleText(tiles)?'<small class="finder-tele">'+E(teleText(tiles))+'</small>':'')+(thieveText(r[0])?'<small class="finder-tele">'+E(thieveText(r[0]))+'</small>':'')+(meleeHitText(r[0])?'<small class="finder-tele">'+E(meleeHitText(r[0]))+'</small>':'')+(npcHitsText(r[0])?'<small class="finder-tele">'+E(npcHitsText(r[0]))+'</small>':'')+'</div>';}
     // While the NPC list loads, the players (from the roster, already here) still show.
     if(npcSpawns!==null&&!npcSpawns.length&&!playerMatches(finderQuery).length)return '<span class="xp-muted">Loading NPC spawns…</span>';
     const m=finderMatches(finderQuery),pm=playerMatches(finderQuery);
