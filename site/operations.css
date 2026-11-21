@@ -255,6 +255,7 @@ button.op-kpi:hover{filter:brightness(1.15)}
 .fl-link{width:28px;height:28px;display:grid;place-items:center;padding:0;background:#00000040;border:1px solid var(--fin-line);border-radius:var(--fin-r-s);color:var(--fin-tx-2);cursor:pointer}
 .fl-link img{width:16px;height:16px;object-fit:contain}
 .fl-link:hover{background:var(--fin-3);border-color:var(--fin-line-2)}
+.fl-tile:focus-visible,.fl-main:focus-visible,.fl-link:focus-visible,.op-button:focus-visible{outline:1px solid #ff981f;outline-offset:1px}
 .ge-row{display:grid;grid-template-columns:28px minmax(0,1fr) 52px 52px 46px;gap:6px;align-items:center}
 .ge-row.ge-owner{grid-template-columns:28px minmax(0,1fr) 48px 48px 44px 44px}
 .ge-row>:nth-child(n+3){text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -302,10 +303,20 @@ button.op-kpi:hover{filter:brightness(1.15)}
 @media(max-width:479px){.client-title>img+span{display:none}}
 /* An item name wraps to a second line, so a narrow panel shows it whole. */
 .ge-name{white-space:normal;overflow-wrap:anywhere;line-height:1.15}
+.stock-sort{display:flex;align-items:center;gap:8px}.stock-sort .op-search{flex:1;min-width:0;width:auto}
+#op-stock-account{max-width:none}
 .ge-row.ge-owner{grid-template-columns:26px minmax(0,1fr) 42px 42px 40px 44px;gap:5px}
 /* One type and one rhythm in every panel: the panel font, 12px text, 12px above the first part. */
 .client-plugin-body .info-row,.client-plugin-body .rival-row{font-family:inherit}
 .client-plugin-body .info-row{font-size:12px}
-.client-plugin-body>:is(.xp-panel,.ge-panel):first-child,.client-plugin-body>.xp-tracker:first-child>.xp-panel{padding-top:12px}
+.client-plugin-body>:is(.xp-panel,.ge-panel,.gear-panel):first-child,.client-plugin-body>.xp-tracker:first-child>.xp-panel{padding-top:12px}
 .client-plugin-body .hs-mode{margin-top:12px}
 .client-plugin-body :is(.ge-panel,.op-page)>.rl-search:first-child{margin-top:0}
+.op-badge.warn{color:var(--fin-gold);border-color:#e8a33a40;background:var(--fin-gold-soft)}
+.op-diag-meta{color:#9d9d9d;font-size:10px;margin-top:2px;overflow-wrap:anywhere}
+.op-bill-controls{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.op-bill-controls .stock-sort{flex:none}
+.op-bill-batches{width:64px!important}
+.op-bill-card{margin-bottom:7px;display:grid;gap:4px}
+.op-bill-meta{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--fin-tx-2);flex-wrap:wrap}
+.good{color:var(--fin-good)}

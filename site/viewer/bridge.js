@@ -9,6 +9,18 @@
       h = Math.imul(h, 16777619) >>> 0;
     }
     return h.toString(16).padStart(8, "0");
+  }, learnHidden = (rows) => {
+    if (!hiddenHashes.size || !Array.isArray(rows))
+      return;
+    for (const p of rows)
+      if (Array.isArray(p) && typeof p[1] === "string" && /^[A-Za-z0-9_ -]{1,12}$/.test(p[1]) && hiddenHashes.has(fnv(p[1].toLowerCase()))) {
+        const lc = p[1].toLowerCase();
+        learned.add(lc);
+        hiddenNames.add(lc);
+      }
+  }, isHiddenName = (name) => {
+    const lc = name.toLowerCase();
+    return hiddenNames.has(lc) || hiddenHashes.size > 0 && hiddenHashes.has(fnv(lc));
   }, undo = [], emit = (detail = !privacyReady ? "Loading the 3D world\u2026 applying the name filter." : !renderReady ? "Loading the 3D world\u2026 drawing the first frame." : "3D world ready.") => {
     if (host.parent === host)
       return;
@@ -29,7 +41,7 @@
     failed = !0;
     privacyReady = !1;
     emit(detail);
-  }, url = new host.URL(host.location.href), hidden = url.searchParams.get("hideNamesFrom");
+  }, url = new host.URL(host.location.href), hidden = url.searchParams.get("hideNamesFrom"), cacheRoot = new host.URL("caches/", host.location.href).pathname;
   let hiddenUrl;
   try {
     hiddenUrl = new host.URL(hidden, host.location.href);
@@ -62,6 +74,12 @@
       if (target.href === hiddenUrl.href)
         fail("Private name filter could not be loaded.");
       throw e;
+    }
+    const cachePath = target.pathname.startsWith("/caches/") ? target.pathname.slice(8) : target.pathname.startsWith(cacheRoot) ? target.pathname.slice(cacheRoot.length) : "";
+    if (response.status === 416 && target.origin === host.location.origin && !target.search && !target.hash && /^[A-Za-z0-9][A-Za-z0-9._-]*\/main_file_cache\.dat$/.test(cachePath) && (!response.url || new host.URL(response.url, target.href).href === target.href)) {
+      const method = String(init?.method ?? input?.method ?? "GET").toUpperCase(), headers = new host.Headers(init?.headers ?? input?.headers), range = /^bytes=([1-9]\d*)-9007199254740991$/.exec(headers.get("Range") || ""), total = /^bytes \*\/([1-9]\d*)$/.exec(response.headers.get("Content-Range") || "");
+      if (method === "GET" && range && total && Number.isSafeInteger(Number(range[1])) && Number.isSafeInteger(Number(total[1])) && Number(range[1]) === Number(total[1]))
+        return new host.Response(null, { status: 206, headers: { "Content-Length": "0", "Content-Type": "application/octet-stream" } });
     }
     if (target.href !== hiddenUrl.href)
       return response;
@@ -202,7 +220,7 @@
     }
     if (changed)
       publishDepleted(m.k);
-  }, groundRow = (r) => Array.isArray(r) && r.length === 5 && r.every(Number.isSafeInteger) && r[0] >= 0 && r[0] < 16384 && r[1] >= 0 && r[1] < 16384 && r[2] >= 0 && r[2] < 4 && r[3] >= 0 && r[3] < 65536 && r[4] >= 1 && r[4] < 2147483648, Socket = host.WebSocket;
+  }, groundRow = (r) => Array.isArray(r) && r.length === 5 && r.every(Number.isSafeInteger) && r[0] >= 0 && r[0] < 16384 && r[1] >= 0 && r[1] < 16384 && r[2] >= 0 && r[2] < 4 && r[3] >= 0 && r[3] < 65536 && r[4] >= 1 && r[4] < 2147483648, Socket = host.WebSocket, openFeeds = new Set;
   if (Socket)
     host.WebSocket = class extends Socket {
       constructor(address, protocols) {
@@ -214,25 +232,30 @@
               clearDepleted();
             }
             this.addEventListener("open", () => {
+              openFeeds.add(this);
               feedConnected = !0;
               emit();
             });
             this.addEventListener("close", () => {
-              feedConnected = !1;
+              openFeeds.delete(this);
+              feedConnected = openFeeds.size > 0;
               emit();
               if (mainFeed === this) {
-                mainFeed = null;
+                mainFeed = openFeeds.values().next().value ?? null;
                 clearDepleted();
               }
             });
             this.addEventListener("error", () => {
-              feedConnected = !1;
+              openFeeds.delete(this);
+              feedConnected = openFeeds.size > 0;
               emit();
             });
             let accessor = null;
             for (let p = Socket.prototype;p && !accessor; p = Object.getPrototypeOf(p))
               accessor = Object.getOwnPropertyDescriptor(p, "onmessage");
-            const rosterRows = new Map, fullRoster = (event) => {
+            const rosterRows = new Map;
+            let hasFullRoster = !1;
+            const fullRoster = (event) => {
               if (typeof event?.data !== "string" || event.data.length > 2000000 || !event.data.includes('"roster"'))
                 return event;
               try {
@@ -240,12 +263,15 @@
                 if (m.t !== "roster")
                   return event;
                 if (Array.isArray(m.p)) {
+                  hasFullRoster = !0;
                   rosterRows.clear();
                   for (const r of m.p)
                     if (Array.isArray(r))
                       rosterRows.set(r[0], r);
                   return event;
                 }
+                if (!hasFullRoster)
+                  return event;
                 for (const slot of Array.isArray(m.lv) ? m.lv : [])
                   rosterRows.delete(slot);
                 for (const r of Array.isArray(m.j) ? m.j : [])
@@ -272,11 +298,8 @@
                 try {
                   const m = JSON.parse(data);
                   if (m.t === "roster") {
-                    for (const p of [...Array.isArray(m.p) ? m.p : [], ...Array.isArray(m.j) ? m.j : []])
-                      if (Array.isArray(p) && typeof p[1] === "string" && /^[A-Za-z0-9_ -]{1,12}$/.test(p[1]) && hiddenHashes.has(fnv(p[1].toLowerCase()))) {
-                        learned.add(p[1].toLowerCase());
-                        hiddenNames.add(p[1].toLowerCase());
-                      }
+                    learnHidden(m.p);
+                    learnHidden(m.j);
                   }
                 } catch {}
               for (const name of learned)
@@ -398,6 +421,7 @@
                 return;
               }
               if (message.t === "roster" && Array.isArray(message.p)) {
+                learnHidden(message.p);
                 for (const p of message.p)
                   if (Array.isArray(p) && typeof p[0] === "number" && typeof p[1] === "string")
                     names.set(p[0], p[1]);
@@ -615,7 +639,9 @@
       if (!privacyReady || !renderReady || failed || host.parent === host)
         return;
       const name = multiAsked[down.pane];
-      host.parent.postMessage({ viewerMultiPick: hiddenNames.has(name.toLowerCase()) ? "\u27E6MAIN\u27E7" : name, index: down.pane }, host.location.origin);
+      if (!name)
+        return;
+      host.parent.postMessage({ viewerMultiPick: isHiddenName(name) ? "\u27E6MAIN\u27E7" : name, index: down.pane }, host.location.origin);
     }, !0);
   }
   host.addEventListener("keydown", (event) => {
@@ -681,6 +707,6 @@
     publishedFollow = follow;
     if (follow.toLowerCase() === pageFollow)
       return;
-    host.parent.postMessage({ atlasFollow: hiddenNames.has(follow.toLowerCase()) ? "\u27E6MAIN\u27E7" : follow }, host.location.origin);
+    host.parent.postMessage({ atlasFollow: isHiddenName(follow) ? "\u27E6MAIN\u27E7" : follow }, host.location.origin);
   }, 500);
 })(window);

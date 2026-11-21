@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { checkItemSheet, rewrite, stampVersions, stampViewer } from '../scripts/import-page';
+import { checkItemSheet, importPage, PAGE_FILES, rewrite, stampVersions, stampViewer } from '../scripts/import-page';
 
 describe('import rewrite', () => {
     test('absolute page paths become relative and the settings and the shim load first', () => {
@@ -19,15 +20,57 @@ describe('import rewrite', () => {
         expect(out).toContain("url('items.webp?v=f91ca1')");
         expect(out).not.toContain("items.png");
     });
-    test('a changed item sheet stops the import until its WebP is rebuilt', () => {
+    test('a changed item sheet stops the import until its WebP is rebuilt, and rebuild unblocks re-import immediately', () => {
         const from = mkdtempSync(join(tmpdir(), 'sheet-from-')), to = mkdtempSync(join(tmpdir(), 'sheet-to-'));
         writeFileSync(join(from, 'items.png'), 'a');
-        writeFileSync(join(to, 'items.png'), 'a');
+        writeFileSync(join(to, 'items.webp'), 'webp');
+        expect(() => checkItemSheet(from, to)).toThrow('items.png changed');
+        const hashA = createHash('sha256').update('a').digest('hex');
+        writeFileSync(join(to, 'index.html'), `url('items.webp?v=${hashA}')`);
         expect(() => checkItemSheet(from, to)).not.toThrow();
         writeFileSync(join(from, 'items.png'), 'b');
         expect(() => checkItemSheet(from, to)).toThrow('items.png changed');
+
+        // Full rebuild-then-reimport flow with make-items-webp.py (even while to/index.html still holds old hash).
+        const realPng = Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+            'base64',
+        );
+        writeFileSync(join(from, 'items.png'), realPng);
+        expect(() => checkItemSheet(from, to)).toThrow('items.png changed');
+        const make = Bun.spawnSync(
+            ['python', join(import.meta.dir, '..', 'scripts', 'make-items-webp.py'), join(from, 'items.png'), '--out', join(to, 'items.webp')],
+            { windowsHide: true },
+        );
+        expect(make.exitCode).toBe(0);
+        expect(() => checkItemSheet(from, to)).not.toThrow();
         rmSync(from, { recursive: true });
         rmSync(to, { recursive: true });
+    });
+    test('importPage omits dead PNG duplicates and removes stale client-assets', () => {
+        const from = mkdtempSync(join(tmpdir(), 'imp-from-')), to = mkdtempSync(join(tmpdir(), 'imp-to-'));
+        mkdirSync(join(from, 'client-assets'), { recursive: true });
+        mkdirSync(join(to, 'client-assets'), { recursive: true });
+        writeFileSync(join(from, 'items.png'), 'a');
+        writeFileSync(join(from, 'worldmap.png'), 'map');
+        writeFileSync(join(from, 'client-assets', 'skill-attack.png'), 'atk');
+        const hashA = createHash('sha256').update('a').digest('hex');
+        writeFileSync(join(to, 'items.webp'), `webp items-png-sha256:${hashA}`);
+        writeFileSync(join(to, 'items.png'), 'dead');
+        writeFileSync(join(to, 'worldmap.png'), 'dead');
+        writeFileSync(join(to, 'client-assets', 'skill-sailing.png'), 'post2004');
+        for (const f of PAGE_FILES) {
+            if (f === 'index.html') writeFileSync(join(from, f), `<head></head><style>.ico{background-image:url('/items.png?v=${hashA}')}</style>`);
+            else if (f === 'client-shell.js') writeFileSync(join(from, f), "  window.addEventListener('keydown',e=>{\n  },true);\n  window.atlasClient={};");
+            else writeFileSync(join(from, f), f);
+        }
+        importPage(from, to);
+        expect(existsSync(join(to, 'items.png'))).toBe(false);
+        expect(existsSync(join(to, 'worldmap.png'))).toBe(false);
+        expect(existsSync(join(to, 'client-assets', 'skill-sailing.png'))).toBe(false);
+        expect(existsSync(join(to, 'client-assets', 'skill-attack.png'))).toBe(true);
+        rmSync(from, { recursive: true, force: true });
+        rmSync(to, { recursive: true, force: true });
     });
     test('script and style links carry a content hash that changes with the file', () => {
         const dir = mkdtempSync(join(tmpdir(), 'stamp-'));

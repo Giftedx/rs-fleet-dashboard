@@ -2,14 +2,14 @@
 // (GitHub Pages serves a project at /<name>/): absolute asset paths become relative, and config.js and shim.js,
 // which replaces the local server's routes, load before anything else.
 // Usage: bun scripts/import-page.ts <folder with the page files>
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 
-export const PAGE_FILES = ['index.html', 'xp-tracker.js', 'client-shell.js', 'client-shell.css', 'client-viewer.css', 'map-shell.js', 'map-shell.css', 'operations.js', 'operations.css', 'items.json', 'items.png', 'RUNELITE-LICENSE.txt'];
+export const PAGE_FILES = ['index.html', 'xp-tracker.js', 'client-shell.js', 'client-shell.css', 'client-viewer.css', 'map-shell.js', 'map-shell.css', 'operations.js', 'operations.css', 'items.json', 'RUNELITE-LICENSE.txt'];
 export const ASSET_DIR = 'client-assets';
-// Present only when the source folder has the exported world map.
-export const OPTIONAL_FILES = ['worldmap.png'];
+// Dead PNG duplicates (worldmap.png, items.png) stay out of site/: the page loads worldmap.webp and items.webp.
+export const OPTIONAL_FILES: string[] = [];
 export const OPTIONAL_DIRS = ['map-squares'];
 
 const VIEWER_CONTROLS = `
@@ -101,10 +101,35 @@ export function stampViewer(to: string) {
     if (!/viewer\/\?build=[0-9a-f]+/.test(text)) throw Error('shim.js has no viewer build id');
     writeFileSync(shim, text.replace(/viewer\/\?build=[0-9a-f]+/, `viewer/?build=${hash(html)}`));
 }
-/** site/items.webp is made from site/items.png, so a new sheet from the page needs a new WebP first. */
+/** site/items.webp is made from the source items.png (no items.png copy is kept in site/). */
 export function checkItemSheet(from: string, to: string) {
-    const sheet = join(to, 'items.png'), source = join(from, 'items.png');
-    if (existsSync(sheet) && !readFileSync(sheet).equals(readFileSync(source))) throw Error('items.png changed: copy it to site/, run python scripts/make-items-webp.py, then import again');
+    const source = join(from, 'items.png');
+    if (!existsSync(source)) return;
+    const sourceHash = createHash('sha256').update(readFileSync(source)).digest('hex');
+    const webp = join(to, 'items.webp');
+    if (existsSync(webp)) {
+        const embedded = readFileSync(webp, 'latin1').match(/items-png-sha256:([0-9a-f]{64})/i)?.[1]?.toLowerCase();
+        if (embedded) {
+            if (embedded !== sourceHash) {
+                throw Error(`items.png changed: run python scripts/make-items-webp.py ${source}, then import again`);
+            }
+            return;
+        }
+        const indexPath = join(to, 'index.html');
+        const stamped = existsSync(indexPath) ? readFileSync(indexPath, 'utf8').match(/items\.webp\?v=([0-9a-f]+)/i)?.[1]?.toLowerCase() : null;
+        if (!stamped || stamped !== sourceHash) {
+            throw Error(`items.png changed: run python scripts/make-items-webp.py ${source}, then import again`);
+        }
+        return;
+    }
+    const pngCopy = join(to, 'items.png');
+    if (existsSync(pngCopy)) {
+        if (!readFileSync(pngCopy).equals(readFileSync(source))) {
+            throw Error(`items.png changed: run python scripts/make-items-webp.py ${source}, then import again`);
+        }
+        return;
+    }
+    throw Error(`missing items.webp: run python scripts/make-items-webp.py ${source}, then import again`);
 }
 export function importPage(from: string, to: string) {
     mkdirSync(to, { recursive: true });
@@ -115,8 +140,10 @@ export function importPage(from: string, to: string) {
         if (/\.(png)$/.test(name)) cpSync(source, join(to, name));
         else writeFileSync(join(to, name), rewrite(name, readFileSync(source, 'utf8')));
     }
+    for (const dead of ['items.png', 'worldmap.png']) rmSync(join(to, dead), { force: true });
     for (const name of OPTIONAL_FILES) if (existsSync(join(from, name))) cpSync(join(from, name), join(to, name));
     for (const name of OPTIONAL_DIRS) if (existsSync(join(from, name))) cpSync(join(from, name), join(to, name), { recursive: true });
+    rmSync(join(to, ASSET_DIR), { recursive: true, force: true });
     cpSync(join(from, ASSET_DIR), join(to, ASSET_DIR), { recursive: true });
     stampViewer(to);
     writeFileSync(join(to, 'index.html'), stampVersions(readFileSync(join(to, 'index.html'), 'utf8'), to));
