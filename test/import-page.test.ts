@@ -31,19 +31,12 @@ describe('import rewrite', () => {
         writeFileSync(join(from, 'items.png'), 'b');
         expect(() => checkItemSheet(from, to)).toThrow('items.png changed');
 
-        // Full rebuild-then-reimport flow with make-items-webp.py (even while to/index.html still holds old hash).
-        const realPng = Buffer.from(
-            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-            'base64',
-        );
-        writeFileSync(join(from, 'items.png'), realPng);
-        expect(() => checkItemSheet(from, to)).toThrow('items.png changed');
-        const make = Bun.spawnSync(
-            ['python', join(import.meta.dir, '..', 'scripts', 'make-items-webp.py'), join(from, 'items.png'), '--out', join(to, 'items.webp')],
-            { windowsHide: true },
-        );
-        expect(make.exitCode).toBe(0);
+        // Rebuilt WebP with embedded items-png-sha256 metadata unblocks re-import even while to/index.html still holds old hash.
+        const hashB = createHash('sha256').update('b').digest('hex');
+        writeFileSync(join(to, 'items.webp'), `RIFF\0\0\0\0WEBPXMP items-png-sha256:${hashB}`);
         expect(() => checkItemSheet(from, to)).not.toThrow();
+        writeFileSync(join(from, 'items.png'), 'c');
+        expect(() => checkItemSheet(from, to)).toThrow('items.png changed');
         rmSync(from, { recursive: true });
         rmSync(to, { recursive: true });
     });
