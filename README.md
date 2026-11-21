@@ -161,7 +161,7 @@ On `localhost`, `?control` shows the control view without a token. The page read
 | `scripts/make-demo.ts` | Demo data, and the example of a publisher |
 | `scripts/deploy.ts` | Puts the page and the public data on one branch for GitHub Pages |
 | `scripts/import-page.ts` | Copies the page from the folder of a local dashboard server and makes its paths relative |
-| `scripts/make-items-webp.py` | Writes `site/items.webp` from `site/items.png` and checks that the pixels match |
+| `scripts/make-items-webp.py` | Writes `site/items.webp` from a source `items.png` and checks that the pixels match |
 
 ## License and credits
 

@@ -3,6 +3,44 @@
 // signed in with a GitHub token, from control.json on the repository's data branch; a command becomes a file under
 // commands/ on main, which the publisher applies. The pure parts hang on globalThis.FleetShim so bun can test
 // them; the install step runs only in a browser.
+// A first visit downloads the viewer's cache files (about 10 MB). The viewer asks for them only after its frame has
+// loaded and its main script has run. This starts the download with the page, stores each fetched file into Cache API,
+// and shares the in-flight promises via globalThis.__atlasCachePrefetch so earlyCacheScript and CacheFiles.ts never
+// issue a duplicate download on cold load.
+(function () {
+    if (typeof document === 'undefined' || !document.baseURI || typeof caches === 'undefined' || typeof fetch !== 'function') return;
+    const files = (globalThis.__atlasCachePrefetch && globalThis.__atlasCachePrefetch.files) || new Map();
+    const CACHE_FILES = ['main_file_cache.dat', 'main_file_cache.idx0', 'main_file_cache.idx1', 'main_file_cache.idx2', 'main_file_cache.idx3', 'main_file_cache.idx4'];
+    const ready = (async () => {
+        const base = new URL('viewer/caches/', document.baseURI);
+        const res = await fetch(new URL('caches.json', base));
+        if (!res || !res.ok) return;
+        const list = await res.json();
+        // With one cache in the list, that cache is the one the viewer loads.
+        if (!Array.isArray(list) || list.length !== 1 || !/^[\w.-]+$/.test(String(list[0] && list[0].name))) return;
+        const dir = new URL(list[0].name + '/', base).pathname, store = await caches.open(list[0].name);
+        const checks = await Promise.all(CACHE_FILES.map(async file => {
+            const url = dir + file;
+            return [url, files.has(url) || !!(await store.match(url))];
+        }));
+        for (const [url, present] of checks) {
+            if (present || files.has(url)) continue;
+            const p = fetch(url).then(async r => {
+                if (!r || !r.ok || r.status !== 200 || (r.headers && r.headers.get && r.headers.get('Content-Range'))) {
+                    files.delete(url);
+                    return false;
+                }
+                await store.put(url, r);
+                return true;
+            }).catch(() => {
+                files.delete(url);
+                return false;
+            });
+            files.set(url, p);
+        }
+    })().catch(() => {});
+    globalThis.__atlasCachePrefetch = { ready, files };
+})();
 (function (global) {
     // config.js (loaded before this file) names the GitHub repository that holds the data and takes the commands.
     // On <owner>.github.io/<repo>/ the address gives it. With no repository the page is public view only.
@@ -10,6 +48,11 @@
         const owner = /^([a-z0-9-]+)\.github\.io$/i.exec(loc && loc.hostname || ''), repo = String(loc && loc.pathname || '').split('/')[1];
         // A user site (<owner>.github.io with no project folder) has a file name there, or nothing.
         return owner && repo && !repo.includes('.') ? owner[1] + '/' + repo : '';
+    }
+    // The core gameDialAddress policy changes transport only, keeping configured server identities intact.
+    function gameDialAddress(address) {
+        if (address === 'rs-sdk-demo.fly.dev') return 'rs-sdk.maxbittker.com';
+        return address.replace(/^(https:|wss:)\/\/rs-sdk-demo\.fly\.dev(?=[/?#]|$)/, '$1//rs-sdk.maxbittker.com');
     }
     const SETTINGS = global.FLEET_CONFIG || {};
     const CONFIG = { repo: SETTINGS.repo || pagesRepo(global.location), publicPollMs: 30000, publicEveryMs: 600000, controlPollMs: 30000, publicFreshMs: 15 * 60000, controlFreshMs: 3 * 60000, heartbeatMs: 4000, tokenKey: 'fleet-command.token', api: 'https://api.github.com' };
@@ -24,25 +67,51 @@
         if (path === '/api/map') return { kind: 'file', file: 'map.bin' };
         // The 3D viewer is hosted next to the page (viewer/, a build of the rs-world fork); it streams
         // the public world feed itself and reads api/hidden-names and api/our-names as files beside the page.
-        if (path === '/api/viewer-health') return { kind: 'json', body: { available: true, url: 'viewer/?build=579eb46290', reason: null } };
+        if (path === '/api/viewer-health') return { kind: 'json', body: { available: true, url: 'viewer/?build=100567e666' + '&live=' + encodeURIComponent(gameDialAddress('wss://' + (SETTINGS.server || 'rs-sdk-demo.fly.dev') + '/worldfeed')), reason: null } };
         if (path === '/api/viewer-timing') return { kind: 'json', body: { ok: true } };
         if (path === '/api/reveal') return { kind: 'reveal' };
         if (path === '/api/our-names' || path === '/api/hidden-names') return { kind: 'json', body: [] };
+        if (path === '/api/gear-catalog') return { kind: 'json', body: [] };
+        if (path === '/api/death-recap') return { kind: 'json', status: 501, body: { error: 'Death recap reads tick records on the PC.' } };
         if (path === '/api/control') return { kind: (method || 'GET').toUpperCase() === 'POST' ? 'command' : 'control' };
         if (path === '/api/player') return { kind: 'player', name: new URLSearchParams(String(url).split('?')[1] || '').get('name') || '' };
         return null;
     }
     // A player lookup on the hosted page: the demo hiscores send no CORS header, so the page cannot read them here.
-    // The published state carries the lookups the PC keeps (each board's 10 rivals, the players at our spots); for any
-    // other name the answer is where the world feed saw the player, without hiscores.
+    // Current snapshots omit embedded rival hiscores and serve live world positions from the roster; older snapshots with
+    // lookups continue to work.
     function playerLookup(state, name) {
         if (!/^[A-Za-z0-9_ -]{1,12}$/.test(name)) return { error: 'a player name is 1-12 letters, digits, spaces, - or _' };
         const key = name.toLowerCase(), lookups = state?.lookups;
         const kept = lookups && Object.hasOwn(lookups, key) ? lookups[key] : null;
-        if (kept) return kept;
+        const now = Date.now(), dated = at => Number.isFinite(at) && at > 0 && at - clockOffset > 0 && at - clockOffset <= now ? at - clockOffset : null;
+        // Producer dates are in the server clock. An explicit unknown stays unknown; old dates keep their age.
+        let presenceObservedAt = null;
+        if (kept && Object.hasOwn(kept, 'presenceObservedAt')) presenceObservedAt = dated(kept.presenceObservedAt);
+        else {
+            // This is the raw cached file, not the heartbeat frame whose now advances between downloads.
+            const collectorAt = dated(state?.now), rawAt = Object.hasOwn(state?.world || {}, 'tickAt') ? state.world.tickAt : Object.hasOwn(state?.hosted || {}, 'at') ? state.hosted.at : Object.hasOwn(state || {}, 'hostedAge') ? null : state?.now, feedAt = dated(rawAt);
+            const fresh = at => at !== null && now - at < 30_000;
+            if (state?.world?.connected === true && !state.stateError && fresh(collectorAt) && fresh(feedAt)) presenceObservedAt = feedAt;
+        }
+        if (kept) return { ...kept, presenceObservedAt };
         const seen = (state && Array.isArray(state.roster) ? state.roster : []).find(r => String(r[0]).toLowerCase() === key);
-        return { name, at: null, rows: null, online: !!seen, x: seen ? seen[1] : null, z: seen ? seen[2] : null, plane: seen ? seen[3] : null, combat: seen ? seen[4] : null, lastSeen: null,
-            note: 'Hiscores show here only for the top 10 on each board and players near our accounts.' };
+        let wild;
+        if (seen) {
+            const x = seen[1], z = seen[2], cb = seen[4];
+            const south = x >= 2944 && x <= 3391 ? (z >= 3520 && z < 4000 ? 3520 : z >= 9920 && z < 10400 ? 9920 : 0) : 0;
+            const level = south ? Math.floor((z - south) / 8) + 1 : 0;
+            if (level > 0) wild = {
+                wild: level,
+                minCombat: Number.isFinite(cb) && cb >= 3 ? Math.max(3, cb - level) : null,
+                maxCombat: Number.isFinite(cb) && cb >= 3 ? Math.min(126, cb + level) : null,
+            };
+        }
+        const hasLookups = !!(lookups && Object.keys(lookups).length);
+        return { name, at: null, rows: null, online: !!seen, x: seen ? seen[1] : null, z: seen ? seen[2] : null, plane: seen ? seen[3] : null, combat: seen ? seen[4] : null, lastSeen: null, presenceObservedAt, ...(wild ? { wild } : {}),
+            note: hasLookups
+                ? 'Hiscores show here only for the top 10 on each board and players near our accounts.'
+                : 'Full hiscores require the local dashboard server (the game server sends no CORS header).' };
     }
     // The page's command envelope plus the time and origin the PC checks.
     function envelope(body, now) {
@@ -154,7 +223,7 @@
         const r = route(url, init && init.method);
         if (!r) return fetch0(input, init);
         try {
-            if (r.kind === 'json') return json(r.body);
+            if (r.kind === 'json') return json(r.body, r.status);
             if (r.kind === 'file') return fetch0(r.file);
             if (r.kind === 'state') {
                 const state = await loadState();
