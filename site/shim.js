@@ -123,6 +123,15 @@
     function acknowledgement(cmd) { return { id: cmd.id, action: cmd.action, taskId: cmd.task && cmd.task.id, at: cmd.at, status: 'sent-to-pc' }; }
     // Commands this page sent and the PC has not answered yet show as waiting in the command list.
     const sent = [];
+    const MAX_SENT_HISTORY = 100;
+    function recordSent(ack) {
+        sent.push(ack);
+        const cutoff = Date.now() - 30 * 60000;
+        let drop = 0;
+        while (drop < sent.length && sent[drop].at <= cutoff) drop++;
+        if (sent.length - drop > MAX_SENT_HISTORY) drop = sent.length - MAX_SENT_HISTORY;
+        if (drop > 0) sent.splice(0, drop);
+    }
     function controlMeta(control) {
         const meta = control && control.control; if (!meta || typeof meta !== 'object') return null;
         const requests = Array.isArray(meta.requests) ? meta.requests : [];
@@ -240,9 +249,9 @@
             if (r.kind === 'control') { const meta = controlMeta(latest || await loadState()); return meta ? json(meta) : json({ error: 'control.json carries no command metadata yet' }, 503); }
             const cmd = envelope(init && init.body || '{}');
             const req = commandRequest(CONFIG.repo, cmd);
-            if (PREVIEW) { global.FleetShim.previewCommands.push(cmd); sent.push(acknowledgement(cmd)); return json(Object.assign(acknowledgement(cmd), { status: 'preview-only' })); }
+            if (PREVIEW) { global.FleetShim.previewCommands.push(cmd); recordSent(acknowledgement(cmd)); return json(Object.assign(acknowledgement(cmd), { status: 'preview-only' })); }
             await api(req.path, { method: 'PUT', body: JSON.stringify(req.body) });
-            sent.push(acknowledgement(cmd));
+            recordSent(acknowledgement(cmd));
             return json(acknowledgement(cmd));
         } catch (e) {
             const error = String(e && e.message || e);
@@ -285,13 +294,15 @@
         }
         heartbeat(published = false) {
             if (!this.last) return;
+            // Skip periodic ~425 KB JSON.stringify/parse churn while the tab is hidden in the background.
+            if (!published && global.document && global.document.hidden) return;
             const measured = dataAge(this.last, Date.now() + clockOffset, signedIn());
             const changed = !age || age.stale !== measured.stale || age.text !== measured.text;
             age = measured;
             if (published || changed) badge();
             if (!this.failed && (published || !age.stale)) this.onmessage?.({ data: JSON.stringify(snapshotFrame(this.last, measured)) });
         }
-        close() { clearInterval(this.timer); clearInterval(this.beat); this.readyState = 2; }
+        close() { clearInterval(this.timer); clearInterval(this.beat); this.readyState = 2; this.last = null; this.onmessage = null; this.onerror = null; }
     };
     // Sign-in lives in the page's own title bar (client-shell.js builds it after this script runs). The token goes to
     // GitHub only, over the API, never to the page's own origin.
