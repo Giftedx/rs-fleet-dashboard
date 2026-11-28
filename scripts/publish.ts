@@ -108,8 +108,12 @@ if (import.meta.main) {
     let firstFrame!: () => void; const hasRoster = new Promise<void>(done => { firstFrame = done; });
     const page = async (path: string) => { const r = await fetch(`https://${server}${path}`, { signal: AbortSignal.timeout(15_000) }); if (!r.ok) throw Error(`${path} returned HTTP ${r.status}`); return r.text(); };
 
+    let activeWs: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     function connect() {
+        reconnectTimer = null;
         const ws = new WebSocket(`wss://${server}/worldfeed`);
+        activeWs = ws;
         ws.onopen = () => { world.connected = true; ws.send(JSON.stringify({ t: 'roster', on: true })); };
         ws.onmessage = e => {
             const m = JSON.parse(String(e.data));
@@ -119,7 +123,12 @@ if (import.meta.main) {
             if (m.k) { world.tick = m.k; world.tickAt = Date.now(); }
             firstFrame();
         };
-        ws.onclose = () => { world.connected = false; if (!once) setTimeout(connect, 5000); };
+        ws.onclose = () => {
+            ws.onopen = null; ws.onmessage = null; ws.onclose = null; ws.onerror = null;
+            if (activeWs === ws) activeWs = null;
+            world.connected = false;
+            if (!once && !reconnectTimer) reconnectTimer = setTimeout(connect, 5000);
+        };
         ws.onerror = () => ws.close();
         return ws;
     }
@@ -153,5 +162,10 @@ if (import.meta.main) {
     await Promise.race([hasRoster, Bun.sleep(10_000)]);
     await cycle();
     if (once) { ws.close(); process.exit(0); }
-    setInterval(() => cycle().catch(error => console.error(error)), every);
+    let cycling = false;
+    setInterval(() => {
+        if (cycling) return;
+        cycling = true;
+        cycle().catch(error => console.error(error)).finally(() => { cycling = false; });
+    }, every);
 }

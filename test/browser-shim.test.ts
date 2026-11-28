@@ -274,3 +274,36 @@ test('installed shim answers /api/gear-catalog and /api/death-recap cleanly with
     expect(await recap.json()).toMatchObject({ error: expect.any(String) });
     expect(networkCalls).toEqual([]);
 });
+
+test('heartbeat skips background JSON serialization when document.hidden is true, and close releases snapshot refs', async () => {
+    const doc = { hidden: false, querySelector: () => null, addEventListener() {} };
+    const clock = { now: 100 * minute };
+    const page = {
+        fetch: async () => Response.json({ now: clock.now, hosted: { at: clock.now }, bots: [] }),
+        Response, AbortSignal, URLSearchParams, setInterval, clearInterval,
+        Date: class extends Date { static now() { return clock.now; } },
+        document: doc,
+        location: { hostname: 'giftedx.github.io', search: '' },
+    };
+    const api = runInNewContext(source + '\n;globalThis', page) as any;
+    const stream = new api.EventSource('/unused');
+    let delivered = 0;
+    stream.onmessage = () => { delivered++; };
+    await stream.tick();
+    expect(delivered).toBe(1);
+
+    doc.hidden = true;
+    clock.now += 4_000;
+    stream.heartbeat();
+    expect(delivered).toBe(1);
+
+    doc.hidden = false;
+    clock.now += 4_000;
+    stream.heartbeat();
+    expect(delivered).toBe(2);
+
+    stream.close();
+    expect(stream.last).toBeNull();
+    expect(stream.onmessage).toBeNull();
+    expect(stream.onerror).toBeNull();
+});
